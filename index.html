@@ -1214,7 +1214,7 @@ async function doExport() {
     // Daily status row
     const dailyCells = workDays.map(date => {
       const s = att[ds(date)] || '';
-      return { office: '🏢 Office', home: '🏠 WFH', leave: '🌴 Leave', holiday: '🎉 Holiday' }[s] || '—';
+      return { office: 'WFO', home: 'WFH', leave: 'Leave', holiday: 'Holiday' }[s] || '—';
     });
 
     // Summary

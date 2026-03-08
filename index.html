@@ -5,11 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WorkSync</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-<!-- SheetJS for Excel export with formatting -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
     --ink:#0f0e17;--paper:#fffcf5;--warm-mid:#f2ede4;
@@ -37,9 +34,6 @@
   .auth-logo{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--paper);margin-bottom:8px;}
   .auth-logo span{color:var(--office);}
   .auth-tagline{color:rgba(255,252,245,.4);font-size:13px;margin-bottom:36px;}
-  .auth-tabs{display:flex;margin-bottom:28px;background:rgba(255,252,245,.06);border-radius:10px;padding:4px;}
-  .auth-tab{flex:1;padding:8px;text-align:center;border-radius:7px;cursor:pointer;font-size:13px;font-weight:500;color:rgba(255,252,245,.45);transition:all .2s;border:none;background:none;}
-  .auth-tab.active{background:var(--office);color:white;}
   .form-group{margin-bottom:16px;}
   .form-label{display:block;font-size:11px;font-weight:600;color:rgba(255,252,245,.45);margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase;}
   .form-input{width:100%;padding:12px 14px;background:rgba(255,252,245,.06);border:1px solid rgba(255,252,245,.1);border-radius:8px;color:var(--paper);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color .2s;}
@@ -48,8 +42,12 @@
   .btn-primary{width:100%;padding:13px;background:var(--office);color:white;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:opacity .2s,transform .1s;margin-top:8px;}
   .btn-primary:hover{opacity:.88;transform:translateY(-1px);}
   .btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none;}
-  .auth-msg{margin-top:14px;font-size:11px;color:rgba(255,252,245,.3);text-align:center;line-height:1.7;}
   .auth-error{background:rgba(224,90,43,.15);border:1px solid rgba(224,90,43,.3);color:#f4a07a;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none;}
+  .auth-success{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);color:#6ee7b7;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none;}
+
+  /* FIRST LOGIN — change password */
+  #change-pw-screen{min-height:100vh;display:none;align-items:center;justify-content:center;background:var(--ink);position:relative;overflow:hidden;}
+  #change-pw-screen::before{content:'';position:absolute;width:600px;height:600px;background:radial-gradient(circle,rgba(16,185,129,.15) 0%,transparent 70%);top:-100px;right:-100px;border-radius:50%;}
 
   /* APP */
   #app-screen{display:none;min-height:100vh;flex-direction:column;}
@@ -60,19 +58,13 @@
   .user-chip{display:flex;align-items:center;gap:8px;background:rgba(255,252,245,.07);padding:6px 12px 6px 6px;border-radius:30px;cursor:pointer;}
   .avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:11px;font-weight:700;color:white;flex-shrink:0;}
   .user-name{font-size:13px;font-weight:500;color:rgba(255,252,245,.85);}
-  .role-badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;letter-spacing:.5px;text-transform:uppercase;}
-  .role-badge.manager{background:rgba(224,90,43,.2);color:#f4a07a;}
-  .role-badge.employee{background:rgba(43,125,224,.2);color:#7ab0f4;}
-  .role-badge.admin{background:rgba(245,158,11,.2);color:#fcd34d;}
-  .btn-logout{background:none;border:1px solid rgba(255,252,245,.12);color:rgba(255,252,245,.5);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;transition:all .2s;}
-  .btn-logout:hover{border-color:rgba(255,252,245,.3);color:var(--paper);}
-
-  /* SYNC */
   .sync-bar{display:flex;align-items:center;font-size:11px;color:rgba(255,252,245,.4);gap:6px;}
   .sync-dot{width:7px;height:7px;border-radius:50%;background:#10b981;}
   .sync-dot.syncing{background:#f59e0b;animation:pulse .8s ease-in-out infinite;}
   .sync-dot.error{background:#ef4444;}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .btn-logout{background:none;border:1px solid rgba(255,252,245,.12);color:rgba(255,252,245,.5);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;transition:all .2s;}
+  .btn-logout:hover{border-color:rgba(255,252,245,.3);color:var(--paper);}
 
   /* NAV */
   .nav-tabs{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;display:flex;}
@@ -121,11 +113,6 @@
   .cal-day.status-holiday{background:var(--holiday-bg);border-color:rgba(16,185,129,.3);}
   .day-status-icon{font-size:14px;margin-top:3px;line-height:1;}
   .cal-day.status-office .day-num,.cal-day.status-home .day-num,.cal-day.status-leave .day-num,.cal-day.status-holiday .day-num{font-size:11px;color:var(--text-muted);}
-  .day-dot{width:6px;height:6px;border-radius:50%;margin-top:4px;}
-  .status-office .day-dot{background:var(--office);}
-  .status-home .day-dot{background:var(--home);}
-  .status-leave .day-dot{background:var(--leave);}
-  .status-holiday .day-dot{background:var(--holiday);}
   .legend{display:flex;gap:20px;padding:14px 24px;border-top:1px solid var(--border);flex-wrap:wrap;}
   .legend-item{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-muted);font-weight:500;}
   .legend-dot{width:10px;height:10px;border-radius:3px;}
@@ -151,7 +138,7 @@
   .btn-clear{padding:11px 16px;background:none;color:#e05a2b;border:1px solid rgba(224,90,43,.3);border-radius:8px;font-size:14px;cursor:pointer;}
 
   /* PROFILE */
-  .profile-modal{width:440px;}
+  .profile-modal{width:460px;}
   .profile-section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:10px;margin-top:20px;}
   .profile-field{margin-bottom:14px;}
   .profile-label{font-size:12px;color:var(--text-muted);margin-bottom:5px;font-weight:500;}
@@ -161,6 +148,9 @@
   .profile-select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;background:var(--paper);color:var(--ink);cursor:pointer;}
   .profile-select:focus{border-color:var(--office);}
   .current-manager-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--office-bg);border:1px solid rgba(224,90,43,.2);border-radius:8px;font-size:13px;font-weight:500;color:var(--office);margin-bottom:10px;}
+
+  /* ADD MEMBER MODAL */
+  .add-member-modal{width:460px;}
 
   /* TABLES */
   .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
@@ -188,6 +178,13 @@
   .bar-good{background:var(--holiday);}
   .bar-warn{background:#f59e0b;}
   .bar-bad{background:var(--office);}
+  .btn-add{padding:8px 16px;background:var(--office);color:white;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .2s;}
+  .btn-add:hover{opacity:.85;}
+  .btn-export{padding:8px 16px;background:var(--holiday);color:white;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .2s;}
+  .btn-export:hover{opacity:.85;}
+  .export-member-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background .15s;}
+  .export-member-item:hover{background:var(--warm-mid);}
+  .export-member-item input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--office);}
 
   /* ADMIN */
   .admin-banner{background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(224,90,43,.08));border:1px solid rgba(245,158,11,.25);border-radius:var(--radius);padding:16px 20px;margin-bottom:24px;display:flex;align-items:center;gap:12px;}
@@ -198,11 +195,6 @@
   .search-bar{padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;background:var(--surface);width:240px;}
   .search-bar:focus{border-color:var(--office);}
 
-  .btn-export{padding:8px 16px;background:var(--holiday);color:white;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .2s;}
-  .btn-export:hover{opacity:.85;}
-  .export-member-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background .15s;}
-  .export-member-item:hover{background:var(--warm-mid);}
-  .export-member-item input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--office);}
   /* REPORTS */
   .report-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;}
   .report-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
@@ -213,8 +205,8 @@
   .donut-swatch{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
   .donut-count{font-weight:600;margin-left:auto;padding-left:8px;}
   .week-list{display:flex;flex-direction:column;gap:6px;}
-  .week-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--warm-mid);border-radius:8px;font-size:13px;}
-  .week-badges{display:flex;gap:6px;}
+  .week-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:8px;font-size:13px;}
+  .week-badges{display:flex;gap:6px;align-items:center;}
 
   /* TOAST */
   .toast{position:fixed;bottom:24px;right:24px;background:var(--ink);color:var(--paper);padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;transform:translateY(80px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);}
@@ -237,35 +229,24 @@
 <div id="auth-screen">
   <div class="auth-card">
     <div class="auth-logo">Work<span>Sync</span></div>
-    <div class="auth-tagline">Hybrid Work Tracking · Powered by Firebase</div>
-    <div class="auth-tabs">
-      <button class="auth-tab active" onclick="switchAuthTab('login')">Sign In</button>
-      <button class="auth-tab" onclick="switchAuthTab('register')">Register</button>
-    </div>
+    <div class="auth-tagline">Hybrid Work Tracking</div>
     <div id="auth-error" class="auth-error"></div>
-    <div id="login-form">
-      <div class="form-group"><label class="form-label">Email</label><input type="email" id="login-email" class="form-input" placeholder="you@company.com"></div>
-      <div class="form-group"><label class="form-label">Password</label><input type="password" id="login-password" class="form-input" placeholder="••••••••"></div>
-      <button class="btn-primary" id="login-btn" onclick="login()">Sign In →</button>
-      <p class="auth-msg">👑 Admin: admin@worksync.com / admin123<br>👔 Manager: alice@co.com / pass123<br>👤 Employee: bob@co.com / pass123</p>
-    </div>
-    <div id="register-form" class="hidden">
-      <div class="form-group"><label class="form-label">Full Name</label><input type="text" id="reg-name" class="form-input" placeholder="Jane Smith"></div>
-      <div class="form-group"><label class="form-label">Email</label><input type="email" id="reg-email" class="form-input" placeholder="you@company.com"></div>
-      <div class="form-group"><label class="form-label">Password</label><input type="password" id="reg-password" class="form-input" placeholder="••••••••"></div>
-      <div class="form-group">
-        <label class="form-label">Role</label>
-        <select id="reg-role" class="form-input" onchange="toggleManagerField()">
-          <option value="employee">Employee</option>
-          <option value="manager">Manager</option>
-        </select>
-      </div>
-      <div class="form-group" id="reg-manager-group">
-        <label class="form-label">Your Manager (optional)</label>
-        <select id="reg-manager" class="form-input"><option value="">— No manager yet —</option></select>
-      </div>
-      <button class="btn-primary" id="reg-btn" onclick="register()">Create Account →</button>
-    </div>
+    <div class="form-group"><label class="form-label">Email</label><input type="email" id="login-email" class="form-input" placeholder="you@company.com"></div>
+    <div class="form-group"><label class="form-label">Password</label><input type="password" id="login-password" class="form-input" placeholder="••••••••"></div>
+    <button class="btn-primary" id="login-btn" onclick="login()">Sign In →</button>
+  </div>
+</div>
+
+<!-- CHANGE PASSWORD (first login) -->
+<div id="change-pw-screen">
+  <div class="auth-card">
+    <div class="auth-logo">Work<span>Sync</span></div>
+    <div class="auth-tagline">Welcome! Please set your new password to continue.</div>
+    <div id="cpw-error" class="auth-error"></div>
+    <div id="cpw-success" class="auth-success"></div>
+    <div class="form-group"><label class="form-label">New Password</label><input type="password" id="cpw-new" class="form-input" placeholder="Enter new password"></div>
+    <div class="form-group"><label class="form-label">Confirm Password</label><input type="password" id="cpw-confirm" class="form-input" placeholder="Confirm new password"></div>
+    <button class="btn-primary" id="cpw-btn" onclick="changeFirstPassword()">Set Password & Continue →</button>
   </div>
 </div>
 
@@ -278,7 +259,6 @@
       <div class="user-chip" onclick="openProfileModal()">
         <div class="avatar" id="header-avatar" style="background:#e05a2b">JD</div>
         <span class="user-name" id="header-name">John Doe</span>
-        <span class="role-badge" id="header-role">Employee</span>
       </div>
       <button class="btn-logout" onclick="logout()">Sign out</button>
     </div>
@@ -310,16 +290,20 @@
           <div class="cal-days" id="cal-days"></div>
         </div>
         <div class="legend">
-          <div class="legend-item"><div class="legend-dot" style="background:var(--office)"></div>Office</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--office)"></div>Office (WFO)</div>
           <div class="legend-item"><div class="legend-dot" style="background:var(--home)"></div>Work From Home</div>
           <div class="legend-item"><div class="legend-dot" style="background:var(--leave)"></div>Leave</div>
           <div class="legend-item"><div class="legend-dot" style="background:var(--holiday)"></div>Holiday</div>
         </div>
       </div>
     </div>
+
     <!-- TEAM -->
     <div id="tab-content-team" class="hidden">
-      <div class="section-header"><div class="section-title">Team Overview</div></div>
+      <div class="section-header">
+        <div class="section-title">Team Overview</div>
+        <button class="btn-add" onclick="openAddMemberModal()">+ Add Team Member</button>
+      </div>
       <div class="filter-row">
         <select class="filter-select" id="team-month-filter" onchange="renderTeamView()"></select>
         <select class="filter-select" id="team-status-filter" onchange="renderTeamView()">
@@ -330,6 +314,7 @@
       </div>
       <div class="team-table" id="team-table"></div>
     </div>
+
     <!-- REPORTS -->
     <div id="tab-content-reports" class="hidden">
       <div class="section-header">
@@ -342,6 +327,7 @@
       </div>
       <div class="report-grid" id="report-grid"></div>
     </div>
+
     <!-- ADMIN -->
     <div id="tab-content-admin" class="hidden">
       <div class="admin-banner">
@@ -363,37 +349,13 @@
   </main>
 </div>
 
-<!-- EXPORT MODAL -->
-<div class="modal-overlay" id="export-modal">
-  <div class="modal" style="width:460px">
-    <div class="modal-title">⬇ Export to Excel</div>
-    <div style="margin-bottom:14px">
-      <div class="profile-label" style="margin-bottom:8px">Select Month</div>
-      <select id="export-month" class="profile-select"></select>
-    </div>
-    <div style="margin-bottom:18px">
-      <div class="profile-label" style="margin-bottom:8px">Select Employees</div>
-      <div style="display:flex;gap:8px;margin-bottom:8px">
-        <button onclick="selectAllExport(true)" style="font-size:12px;padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:var(--warm-mid);cursor:pointer">Select All</button>
-        <button onclick="selectAllExport(false)" style="font-size:12px;padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:var(--warm-mid);cursor:pointer">Deselect All</button>
-      </div>
-      <div id="export-member-list" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px"></div>
-    </div>
-    <div style="background:var(--warm-mid);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text-muted);margin-bottom:18px">
-      📋 Export includes: daily status, office/WFH/leave counts, compliance % per week
-    </div>
-    <div class="modal-actions">
-      <button class="btn-save" onclick="doExport()">⬇ Download Excel</button>
-      <button class="btn-cancel" onclick="closeExportModal()">Cancel</button>
-    </div>
-  </div>
-</div>
+<!-- DAY MODAL -->
 <div class="modal-overlay" id="day-modal">
   <div class="modal">
     <div class="modal-title" id="modal-date-label"></div>
     <div class="status-options">
-      <div class="status-option" data-status="office" onclick="selectStatus('office')">🏢 Work from Office</div>
-      <div class="status-option" data-status="home" onclick="selectStatus('home')">🏠 Work from Home</div>
+      <div class="status-option" data-status="office" onclick="selectStatus('office')">🏢 Work from Office (WFO)</div>
+      <div class="status-option" data-status="home" onclick="selectStatus('home')">🏠 Work from Home (WFH)</div>
       <div class="status-option" data-status="leave" onclick="selectStatus('leave')">🌴 On Leave</div>
       <div class="status-option" data-status="holiday" onclick="selectStatus('holiday')">🎉 Public Holiday</div>
     </div>
@@ -417,12 +379,64 @@
   </div>
 </div>
 
+<!-- ADD MEMBER MODAL -->
+<div class="modal-overlay" id="add-member-modal">
+  <div class="modal add-member-modal">
+    <div class="modal-title">➕ Add Team Member</div>
+    <div id="add-member-error" class="auth-error" style="background:rgba(224,90,43,.1);border:1px solid rgba(224,90,43,.2);color:var(--office);padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:14px;display:none;"></div>
+    <div class="profile-field"><div class="profile-label">Full Name</div><input id="am-name" class="profile-input" placeholder="Jane Smith"></div>
+    <div class="profile-field"><div class="profile-label">Email</div><input type="email" id="am-email" class="profile-input" placeholder="jane@company.com"></div>
+    <div class="profile-field">
+      <div class="profile-label">Role</div>
+      <select id="am-role" class="profile-select" onchange="toggleAmManager()">
+        <option value="employee">Employee</option>
+        <option value="manager">Manager</option>
+      </select>
+    </div>
+    <div class="profile-field" id="am-manager-group">
+      <div class="profile-label">Reports To (Manager)</div>
+      <select id="am-manager" class="profile-select"></select>
+    </div>
+    <div class="profile-field">
+      <div class="profile-label">Initial Password <span style="font-size:11px;color:var(--text-muted)">(employee will change on first login)</span></div>
+      <input type="text" id="am-password" class="profile-input" placeholder="Set a temporary password">
+    </div>
+    <div class="modal-actions" style="margin-top:4px">
+      <button class="btn-save" id="am-save-btn" onclick="saveNewMember()">Create Member</button>
+      <button class="btn-cancel" onclick="closeAddMemberModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- EXPORT MODAL -->
+<div class="modal-overlay" id="export-modal">
+  <div class="modal" style="width:460px">
+    <div class="modal-title">⬇ Export to Excel</div>
+    <div style="margin-bottom:14px">
+      <div class="profile-label" style="margin-bottom:8px">Select Month</div>
+      <select id="export-month" class="profile-select"></select>
+    </div>
+    <div style="margin-bottom:18px">
+      <div class="profile-label" style="margin-bottom:8px">Select Employees</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button onclick="selectAllExport(true)" style="font-size:12px;padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:var(--warm-mid);cursor:pointer">Select All</button>
+        <button onclick="selectAllExport(false)" style="font-size:12px;padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:var(--warm-mid);cursor:pointer">Deselect All</button>
+      </div>
+      <div id="export-member-list" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-save" onclick="doExport()">⬇ Download Excel</button>
+      <button class="btn-cancel" onclick="closeExportModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v30new</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v31</div>
 
 <script>
 // ═══════════════════════════════════════
-//  FIREBASE INIT
+//  FIREBASE
 // ═══════════════════════════════════════
 const firebaseConfig = {
   apiKey: "AIzaSyBW8X7liM4v_dahtn-fF91sdMo-iFhnBxo",
@@ -436,36 +450,18 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// ═══════════════════════════════════════
-//  FIREBASE HELPERS
-// ═══════════════════════════════════════
-// Safe email key: replace . with , for Firebase paths
-function emailKey(email) { return email.replace(/\./g, ','); }
-function fromEmailKey(key) { return key.replace(/,/g, '.'); }
-
-async function fbGet(path) {
-  const snap = await db.ref(path).once('value');
-  return snap.val();
-}
-async function fbSet(path, val) {
-  await db.ref(path).set(val);
-}
-async function fbUpdate(path, val) {
-  await db.ref(path).update(val);
-}
-async function fbRemove(path) {
-  await db.ref(path).remove();
-}
+function emailKey(e) { return e.replace(/\./g,','); }
+async function fbGet(p) { const s = await db.ref(p).once('value'); return s.val(); }
+async function fbSet(p,v) { await db.ref(p).set(v); }
+async function fbUpdate(p,v) { await db.ref(p).update(v); }
+async function fbRemove(p) { await db.ref(p).remove(); }
 
 // ═══════════════════════════════════════
-//  IN-MEMORY CACHE
+//  STATE
 // ═══════════════════════════════════════
-let USERS = {};       // { emailKey: userObj }
-let ATT = {};         // { emailKey: { dateStr: status } }
-let currentUser = null, calYear, calMonth, modalDate = null, selectedStatus = null;
-// Real-time listeners
+let USERS = {}, ATT = {}, currentUser = null;
+let calYear, calMonth, modalDate = null, selectedStatus = null;
 let teamListeners = {};
-
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 // ═══════════════════════════════════════
@@ -473,44 +469,41 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 // ═══════════════════════════════════════
 function ds(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function initials(n) { return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
-function statusCalIcon(s) { return {office:'🏢',home:'🏠',leave:'🌴',holiday:'🎉'}[s]||''; }
-function statusLabel(s) { return {office:'Office',home:'Work From Home',leave:'Leave',holiday:'Holiday'}[s]||s; }
+function statusLabel(s) { return {office:'WFO',home:'WFH',leave:'Leave',holiday:'Holiday'}[s]||s; }
 function statusIcon(s)  { return {office:'🏢',home:'🏠',leave:'🌴',holiday:'🎉'}[s]||''; }
-function getManagers()  { return Object.values(USERS).filter(u=>u.role==='manager'); }
+function statusCalIcon(s){ return {office:'🏢',home:'🏠',leave:'🌴',holiday:'🎉'}[s]||''; }
+function getManagers()  { return Object.values(USERS).filter(u=>u.role==='manager'||u.role==='admin'); }
+function getAllManagers(){ return Object.values(USERS).filter(u=>u.role==='manager'); }
 function getTeam(mid)   { return Object.values(USERS).filter(u=>u.managerId===mid); }
 function getAllNonAdmin(){ return Object.values(USERS).filter(u=>u.role!=='admin'); }
-function getAtt(email)  { return ATT[emailKey(email)] || {}; }
+function getAtt(email)  { return ATT[emailKey(email)]||{}; }
 
-function setSyncing(on, err) {
-  const dot = document.getElementById('sync-dot');
-  const lbl = document.getElementById('sync-label');
-  if (!dot) return;
-  dot.className = 'sync-dot' + (err?' error':on?' syncing':'');
-  lbl.textContent = err ? 'Error' : on ? 'Saving…' : 'Synced ✓';
+function setSyncing(on,err) {
+  const dot=document.getElementById('sync-dot'), lbl=document.getElementById('sync-label');
+  if(!dot) return;
+  dot.className='sync-dot'+(err?' error':on?' syncing':'');
+  lbl.textContent=err?'Error':on?'Saving…':'Synced ✓';
 }
-
 function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = '✓ ' + msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), 2500);
+  const t=document.getElementById('toast');
+  t.textContent='✓ '+msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
 }
+function showError(elId, msg) {
+  const el=document.getElementById(elId);
+  el.textContent=msg; el.style.display='block';
+}
+function hideError(elId) { document.getElementById(elId).style.display='none'; }
 
 // ═══════════════════════════════════════
-//  SEED DEMO DATA
+//  SEED ADMIN ONLY
 // ═══════════════════════════════════════
-async function seedDemoUsers() {
-  const defaults = [
-    { id:'admin@worksync.com', name:'System Admin',  email:'admin@worksync.com', password:'admin123', role:'admin',    managerId:null,          color:'#f59e0b' },
-    { id:'alice@co.com',       name:'Alice Johnson', email:'alice@co.com',       password:'pass123',  role:'manager',  managerId:null,          color:'#e05a2b' },
-    { id:'bob@co.com',         name:'Bob Smith',     email:'bob@co.com',         password:'pass123',  role:'employee', managerId:'alice@co.com', color:'#2b7de0' },
-    { id:'carol@co.com',       name:'Carol Davis',   email:'carol@co.com',       password:'pass123',  role:'employee', managerId:'alice@co.com', color:'#8b5cf6' },
-  ];
-  for (const u of defaults) {
-    const ek = emailKey(u.email);
-    if (!USERS[ek]) {
-      USERS[ek] = u;
-      await fbSet(`users/${ek}`, u);
-    }
+async function seedAdmin() {
+  const ek = emailKey('admin@worksync.com');
+  if (!USERS[ek]) {
+    const admin = { id:'admin@worksync.com', name:'System Admin', email:'admin@worksync.com', password:'admin123', role:'admin', managerId:null, color:'#f59e0b', mustChangePw:false };
+    USERS[ek] = admin;
+    await fbSet(`users/${ek}`, admin);
   }
 }
 
@@ -518,16 +511,16 @@ async function seedDemoUsers() {
 //  BOOT
 // ═══════════════════════════════════════
 (async () => {
-  document.getElementById('loading-msg').textContent = 'Connecting to Firebase…';
   try {
-    const usersSnap = await fbGet('users');
-    USERS = usersSnap || {};
-    await seedDemoUsers();
+    document.getElementById('loading-msg').textContent = 'Connecting to Firebase…';
+    const snap = await fbGet('users');
+    USERS = snap || {};
+    await seedAdmin();
 
-    // ── Auto-restore session ──
+    // Restore session
     const savedEmail = sessionStorage.getItem('ws_session');
     if (savedEmail) {
-      document.getElementById('loading-msg').textContent = 'Restoring your session…';
+      document.getElementById('loading-msg').textContent = 'Restoring session…';
       const ek = emailKey(savedEmail);
       const user = await fbGet(`users/${ek}`);
       if (user) {
@@ -537,224 +530,211 @@ async function seedDemoUsers() {
         document.getElementById('loading-screen').style.display = 'none';
         initApp();
         return;
-      } else {
-        sessionStorage.removeItem('ws_session');
-      }
+      } else { sessionStorage.removeItem('ws_session'); }
     }
 
     document.getElementById('loading-screen').style.display = 'none';
     document.getElementById('auth-screen').style.display = 'flex';
-    populateRegManagerDropdown();
   } catch(e) {
-    document.getElementById('loading-msg').textContent = '❌ Failed to connect. Check your internet connection.';
+    document.getElementById('loading-msg').textContent = '❌ Failed to connect. Check your internet.';
   }
 })();
 
 // ═══════════════════════════════════════
-//  AUTH
+//  AUTH — LOGIN ONLY
 // ═══════════════════════════════════════
-function switchAuthTab(t) {
-  document.querySelectorAll('.auth-tab').forEach((el,i)=>el.classList.toggle('active',(i===0&&t==='login')||(i===1&&t==='register')));
-  document.getElementById('login-form').classList.toggle('hidden', t!=='login');
-  document.getElementById('register-form').classList.toggle('hidden', t!=='register');
-  document.getElementById('auth-error').style.display = 'none';
-  if (t==='register') populateRegManagerDropdown();
-}
-
-function toggleManagerField() {
-  document.getElementById('reg-manager-group').style.display = document.getElementById('reg-role').value==='employee'?'':'none';
-}
-
-function populateRegManagerDropdown() {
-  const sel = document.getElementById('reg-manager');
-  sel.innerHTML = '<option value="">— No manager yet —</option>';
-  getManagers().forEach(m => {
-    const o = document.createElement('option');
-    o.value = m.email; o.textContent = `${m.name} (${m.email})`; sel.appendChild(o);
-  });
-}
-
-function showAuthError(msg) {
-  const el = document.getElementById('auth-error');
-  el.textContent = msg; el.style.display = 'block';
-}
-
 async function login() {
   const email = document.getElementById('login-email').value.trim().toLowerCase();
   const pass  = document.getElementById('login-password').value;
-  const ek = emailKey(email);
-  const btn = document.getElementById('login-btn');
+  const btn   = document.getElementById('login-btn');
+  hideError('auth-error');
+  if (!email||!pass) return showError('auth-error','Please enter your email and password.');
   btn.disabled=true; btn.textContent='Signing in…';
   try {
-    // Always fetch fresh user from Firebase
+    const ek   = emailKey(email);
     const user = await fbGet(`users/${ek}`);
-    if (!user || user.password !== pass) {
+    if (!user||user.password!==pass) {
       btn.disabled=false; btn.textContent='Sign In →';
-      return showAuthError('Invalid email or password.');
+      return showError('auth-error','Invalid email or password.');
     }
-    USERS[ek] = user;
-    // Load this user's attendance
     const att = await fbGet(`attendance/${ek}`);
-    ATT[ek] = att || {};
+    ATT[ek] = att||{};
     currentUser = user;
-    sessionStorage.setItem('ws_session', email); // Save session
     btn.disabled=false; btn.textContent='Sign In →';
+
+    // First login — force password change
+    if (user.mustChangePw) {
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('change-pw-screen').style.display = 'flex';
+      return;
+    }
+
+    sessionStorage.setItem('ws_session', email);
     initApp();
   } catch(e) {
     btn.disabled=false; btn.textContent='Sign In →';
-    showAuthError('Connection error. Please try again.');
+    showError('auth-error','Connection error. Please try again.');
   }
 }
 
-async function register() {
-  const name  = document.getElementById('reg-name').value.trim();
-  const email = document.getElementById('reg-email').value.trim().toLowerCase();
-  const pass  = document.getElementById('reg-password').value;
-  const role  = document.getElementById('reg-role').value;
-  const mid   = role==='employee'?(document.getElementById('reg-manager').value||null):null;
-  if (!name||!email||!pass) return showAuthError('Please fill all required fields.');
-  const ek = emailKey(email);
-  const btn = document.getElementById('reg-btn');
-  btn.disabled=true; btn.textContent='Creating…';
+async function changeFirstPassword() {
+  const np  = document.getElementById('cpw-new').value;
+  const cp  = document.getElementById('cpw-confirm').value;
+  const btn = document.getElementById('cpw-btn');
+  hideError('cpw-error');
+  if (!np||np.length<6) return showError('cpw-error','Password must be at least 6 characters.');
+  if (np!==cp) return showError('cpw-error','Passwords do not match.');
+  btn.disabled=true; btn.textContent='Saving…';
   try {
-    const existing = await fbGet(`users/${ek}`);
-    if (existing) { btn.disabled=false; btn.textContent='Create Account →'; return showAuthError('Email already registered.'); }
-    const colors = ['#e05a2b','#2b7de0','#8b5cf6','#10b981','#f59e0b','#ec4899','#06b6d4'];
-    const newUser = { id:email, name, email, password:pass, role, managerId:mid, color:colors[Math.floor(Math.random()*colors.length)] };
-    await fbSet(`users/${ek}`, newUser);
-    await fbSet(`attendance/${ek}`, {});
-    USERS[ek] = newUser;
-    ATT[ek] = {};
-    currentUser = newUser;
-    sessionStorage.setItem('ws_session', email); // Save session
-    btn.disabled=false; btn.textContent='Create Account →';
+    currentUser.password = np;
+    currentUser.mustChangePw = false;
+    await fbUpdate(`users/${emailKey(currentUser.email)}`, { password:np, mustChangePw:false });
+    USERS[emailKey(currentUser.email)] = currentUser;
+    sessionStorage.setItem('ws_session', currentUser.email);
+    document.getElementById('change-pw-screen').style.display = 'none';
+    btn.disabled=false; btn.textContent='Set Password & Continue →';
     initApp();
   } catch(e) {
-    btn.disabled=false; btn.textContent='Create Account →';
-    showAuthError('Connection error. Please try again.');
+    btn.disabled=false; btn.textContent='Set Password & Continue →';
+    showError('cpw-error','Save failed. Please try again.');
   }
 }
 
 function logout() {
-  // Remove real-time listeners
-  Object.values(teamListeners).forEach(ref => ref.off());
-  teamListeners = {};
-  currentUser = null; ATT = {};
-  sessionStorage.removeItem('ws_session'); // Clear session on logout
-  document.getElementById('app-screen').style.display = 'none';
-  document.getElementById('auth-screen').style.display = 'flex';
-  document.getElementById('login-email').value = '';
-  document.getElementById('login-password').value = '';
-  document.getElementById('auth-error').style.display = 'none';
-  switchAuthTab('login');
+  Object.values(teamListeners).forEach(r=>r.off());
+  teamListeners={};
+  currentUser=null; ATT={};
+  sessionStorage.removeItem('ws_session');
+  document.getElementById('app-screen').style.display='none';
+  document.getElementById('auth-screen').style.display='flex';
+  document.getElementById('login-email').value='';
+  document.getElementById('login-password').value='';
+  hideError('auth-error');
 }
 
 // ═══════════════════════════════════════
 //  APP INIT
 // ═══════════════════════════════════════
 async function initApp() {
-  document.getElementById('auth-screen').style.display = 'none';
-  const app = document.getElementById('app-screen');
-  app.style.display = 'flex'; app.style.flexDirection = 'column';
+  document.getElementById('auth-screen').style.display='none';
+  document.getElementById('change-pw-screen').style.display='none';
+  const app=document.getElementById('app-screen');
+  app.style.display='flex'; app.style.flexDirection='column';
 
-  const now = new Date(); calYear = now.getFullYear(); calMonth = now.getMonth();
+  const now=new Date(); calYear=now.getFullYear(); calMonth=now.getMonth();
 
-  document.getElementById('header-name').textContent = currentUser.name;
-  document.getElementById('header-role').textContent = currentUser.role.charAt(0).toUpperCase()+currentUser.role.slice(1);
-  document.getElementById('header-role').className = `role-badge ${currentUser.role}`;
-  document.getElementById('header-avatar').textContent = initials(currentUser.name);
-  document.getElementById('header-avatar').style.background = currentUser.color;
+  document.getElementById('header-name').textContent=currentUser.name;
+  document.getElementById('header-avatar').textContent=initials(currentUser.name);
+  document.getElementById('header-avatar').style.background=currentUser.color;
 
-  document.getElementById('tab-team').classList.toggle('hidden', currentUser.role!=='manager');
-  document.getElementById('tab-admin').classList.toggle('hidden', currentUser.role!=='admin');
-  document.getElementById('tab-dashboard').classList.toggle('hidden', currentUser.role==='admin');
-  document.getElementById('tab-reports').classList.toggle('hidden', currentUser.role==='admin');
+  // Tab visibility: manager sees team tab, admin sees admin tab, dashboard hidden for admin
+  const isMgr  = currentUser.role==='manager';
+  const isAdmin= currentUser.role==='admin';
+  document.getElementById('tab-team').classList.toggle('hidden', !isMgr);
+  document.getElementById('tab-admin').classList.toggle('hidden', !isAdmin);
+  document.getElementById('tab-dashboard').classList.toggle('hidden', isAdmin);
+  document.getElementById('tab-reports').classList.toggle('hidden', isAdmin);
 
   populateMonthFilters();
 
-  if (currentUser.role === 'admin') {
-    // Load all users fresh
-    const snap = await fbGet('users');
-    USERS = snap || {};
+  if (isAdmin) {
+    const snap=await fbGet('users'); USERS=snap||{};
     showTab('admin');
   } else {
-    // Set up real-time listener for current user's attendance
     setupAttListener(currentUser.email);
-
-    if (currentUser.role === 'manager') {
-      // Load all users fresh for team view
-      const snap = await fbGet('users');
-      USERS = snap || {};
-    }
+    if (isMgr) { const snap=await fbGet('users'); USERS=snap||{}; }
     renderCalendar(); renderStats(); showTab('dashboard');
   }
-}
-
-// ═══════════════════════════════════════
-//  REAL-TIME LISTENERS
-// ═══════════════════════════════════════
-function setupAttListener(email) {
-  const ek = emailKey(email);
-  if (teamListeners[ek]) teamListeners[ek].off();
-  const ref = db.ref(`attendance/${ek}`);
-  ref.on('value', snap => {
-    ATT[ek] = snap.val() || {};
-    // Re-render if this is current user
-    if (currentUser && email === currentUser.email) {
-      renderCalendar(); renderStats();
-    }
-    // Re-render team view if manager is watching
-    if (currentUser && currentUser.role === 'manager') {
-      const activeTab = document.querySelector('.nav-tab.active');
-      if (activeTab && activeTab.id === 'tab-team') renderTeamView();
-    }
-  });
-  teamListeners[ek] = ref;
-}
-
-function setupTeamListeners() {
-  const team = getTeam(currentUser.id);
-  team.forEach(m => setupAttListener(m.email));
 }
 
 // ═══════════════════════════════════════
 //  TABS
 // ═══════════════════════════════════════
 function showTab(name) {
-  ['dashboard','team','reports','admin'].forEach(t => {
-    document.getElementById(`tab-content-${t}`).classList.toggle('hidden', t!==name);
-    const b = document.getElementById(`tab-${t}`);
-    if (b) b.classList.toggle('active', t===name);
+  ['dashboard','team','reports','admin'].forEach(t=>{
+    document.getElementById(`tab-content-${t}`).classList.toggle('hidden',t!==name);
+    const b=document.getElementById(`tab-${t}`); if(b) b.classList.toggle('active',t===name);
   });
-  if (name==='team')    renderTeamView();
-  if (name==='reports') renderReports();
-  if (name==='admin')   renderAdminPanel();
+  if(name==='team')    renderTeamView();
+  if(name==='reports') renderReports();
+  if(name==='admin')   renderAdminPanel();
+}
+
+// ═══════════════════════════════════════
+//  REAL-TIME LISTENERS
+// ═══════════════════════════════════════
+function setupAttListener(email) {
+  const ek=emailKey(email);
+  if(teamListeners[ek]) teamListeners[ek].off();
+  const ref=db.ref(`attendance/${ek}`);
+  ref.on('value',snap=>{
+    ATT[ek]=snap.val()||{};
+    if(currentUser&&email===currentUser.email){ renderCalendar(); renderStats(); }
+    if(currentUser&&currentUser.role==='manager'){
+      const active=document.querySelector('.nav-tab.active');
+      if(active&&active.id==='tab-team') renderTeamView();
+    }
+  });
+  teamListeners[ek]=ref;
+}
+function setupTeamListeners() { getTeam(currentUser.id).forEach(m=>setupAttListener(m.email)); }
+
+// ═══════════════════════════════════════
+//  COMPLIANCE
+// ═══════════════════════════════════════
+function calcCompliance(att,year,month) {
+  const dim=new Date(year,month+1,0).getDate();
+  const weeks={};
+  for(let d=1;d<=dim;d++){
+    const date=new Date(year,month,d), dow=date.getDay();
+    if(dow===0||dow===6) continue;
+    const monday=new Date(date); monday.setDate(date.getDate()-(dow-1));
+    const wk=ds(monday);
+    if(!weeks[wk]) weeks[wk]={office:0,leave:0,holiday:0,home:0,workdays:0};
+    weeks[wk].workdays++;
+    const s=att[ds(date)];
+    if(s==='office') weeks[wk].office++;
+    if(s==='leave')  weeks[wk].leave++;
+    if(s==='holiday')weeks[wk].holiday++;
+    if(s==='home')   weeks[wk].home++;
+  }
+  let totalRequired=0,totalOffice=0,weeksOnTrack=0,weeksTotal=0;
+  const weekDetails=[];
+  Object.entries(weeks).forEach(([wk,w])=>{
+    const req=Math.max(0,2-(w.leave+w.holiday));
+    const met=w.office>=req;
+    w.req=req; w.met=met;
+    totalRequired+=req; totalOffice+=w.office; weeksTotal++;
+    if(met) weeksOnTrack++;
+    weekDetails.push({wk,...w});
+  });
+  const pct=totalRequired>0?Math.min(100,Math.round((totalOffice/totalRequired)*100)):100;
+  return {totalOffice,totalRequired,weeksOnTrack,weeksTotal,pct,weekDetails};
 }
 
 // ═══════════════════════════════════════
 //  CALENDAR
 // ═══════════════════════════════════════
-function changeMonth(dir) {
+function changeMonth(dir){
   calMonth+=dir;
   if(calMonth>11){calMonth=0;calYear++;} if(calMonth<0){calMonth=11;calYear--;}
   renderCalendar(); renderStats();
 }
-function goToday() { const n=new Date(); calYear=n.getFullYear(); calMonth=n.getMonth(); renderCalendar(); renderStats(); }
-
-function renderCalendar() {
-  document.getElementById('cal-month-title').textContent = `${MONTHS[calMonth]} ${calYear}`;
-  const container = document.getElementById('cal-days'); container.innerHTML='';
-  const att = getAtt(currentUser.email), today=ds(new Date());
+function goToday(){const n=new Date();calYear=n.getFullYear();calMonth=n.getMonth();renderCalendar();renderStats();}
+function renderCalendar(){
+  document.getElementById('cal-month-title').textContent=`${MONTHS[calMonth]} ${calYear}`;
+  const container=document.getElementById('cal-days'); container.innerHTML='';
+  const att=getAtt(currentUser.email),today=ds(new Date());
   const firstDay=new Date(calYear,calMonth,1).getDay();
   const dim=new Date(calYear,calMonth+1,0).getDate();
   const prevDays=new Date(calYear,calMonth,0).getDate();
   for(let i=firstDay-1;i>=0;i--) container.appendChild(mkDay(prevDays-i,true,false,null,null));
   for(let d=1;d<=dim;d++){
-    const date=new Date(calYear,calMonth,d), key=ds(date);
+    const date=new Date(calYear,calMonth,d),key=ds(date);
     const isWE=date.getDay()===0||date.getDay()===6;
     container.appendChild(mkDay(d,false,isWE,key,att[key]||null,key===today));
   }
-  const total=firstDay+dim, rem=total%7===0?0:7-(total%7);
+  const total=firstDay+dim,rem=total%7===0?0:7-(total%7);
   for(let i=1;i<=rem;i++) container.appendChild(mkDay(i,true,false,null,null));
 }
 function mkDay(num,other,weekend,key,status,isToday){
@@ -763,7 +743,7 @@ function mkDay(num,other,weekend,key,status,isToday){
   if(weekend) el.classList.add('weekend');
   if(isToday) el.classList.add('today');
   if(status) el.classList.add(`status-${status}`);
-  el.innerHTML=`<span>${num}</span>${status?`<div class="day-status-icon">${statusCalIcon(status)}</div>`:''}`;
+  el.innerHTML=`<span class="day-num">${num}</span>${status?`<div class="day-status-icon">${statusCalIcon(status)}</div>`:''}`;
   if(!other&&!weekend&&key) el.addEventListener('click',()=>openModal(key));
   return el;
 }
@@ -771,134 +751,60 @@ function mkDay(num,other,weekend,key,status,isToday){
 // ═══════════════════════════════════════
 //  STATS
 // ═══════════════════════════════════════
-function calcCompliance(att, year, month) {
-  // Build weeks: each week = Mon-Fri days in that ISO week within this month
-  const dim = new Date(year, month + 1, 0).getDate();
-  const weeks = {}; // weekKey -> { officeDays, nonOfficeDays (leave+holiday), totalWorkdays, requiredOffice }
-
-  for (let d = 1; d <= dim; d++) {
-    const date = new Date(year, month, d);
-    const dow = date.getDay();
-    if (dow === 0 || dow === 6) continue; // skip weekends
-
-    // Week key: Sunday to Saturday
-    // Find the Sunday that starts this week
-    const weekStart = new Date(date);
-    weekStart.setDate(date.getDate() - dow); // Sunday of that week (dow=0 for Sun, so no change for Sun)
-    const wk = `${weekStart.getFullYear()}-${String(weekStart.getMonth()+1).padStart(2,'0')}-${String(weekStart.getDate()).padStart(2,'0')}`;
-
-    if (!weeks[wk]) weeks[wk] = { office:0, leave:0, holiday:0, workdays:0, required:0 };
-    weeks[wk].workdays++;
-
-    const s = att[ds(date)];
-    if (s === 'office')  weeks[wk].office++;
-    if (s === 'leave')   weeks[wk].leave++;
-    if (s === 'holiday') weeks[wk].holiday++;
-  }
-
-  // Per week: required office = max(0, 2 - leave - holiday)
-  // i.e. each leave/holiday day reduces the office requirement by 1, min 0
-  let totalRequired = 0, totalOffice = 0, weeksOnTrack = 0, weeksTotal = 0;
-  const weekDetails = [];
-
-  Object.entries(weeks).forEach(([wk, w]) => {
-    const req = Math.max(0, 2 - (w.leave + w.holiday));
-    const met = w.office >= req;
-    totalRequired += req;
-    totalOffice   += w.office;
-    weeksTotal++;
-    if (met) weeksOnTrack++;
-    weekDetails.push({ wk, ...w, req, met });
-  });
-
-  const pct = totalRequired > 0 ? Math.min(100, Math.round((totalOffice / totalRequired) * 100)) : 100;
-  return { totalOffice, totalRequired, weeksOnTrack, weeksTotal, pct, weekDetails };
-}
-
-function renderStats() {
-  const att = getAtt(currentUser.email);
-  let home=0, leave=0, holiday=0, workdays=0;
-  const dim = new Date(calYear, calMonth+1, 0).getDate();
-  for (let d=1; d<=dim; d++) {
-    const date = new Date(calYear, calMonth, d);
-    if (date.getDay()===0||date.getDay()===6) continue;
+function renderStats(){
+  const att=getAtt(currentUser.email);
+  let home=0,leave=0,holiday=0,workdays=0;
+  const dim=new Date(calYear,calMonth+1,0).getDate();
+  for(let d=1;d<=dim;d++){
+    const date=new Date(calYear,calMonth,d);
+    if(date.getDay()===0||date.getDay()===6) continue;
     workdays++;
-    const s = att[ds(date)];
-    if (s==='home')    home++;
-    if (s==='leave')   leave++;
-    if (s==='holiday') holiday++;
+    const s=att[ds(date)];
+    if(s==='home') home++; if(s==='leave') leave++; if(s==='holiday') holiday++;
   }
-
-  const { totalOffice, totalRequired, weeksOnTrack, weeksTotal, pct } = calcCompliance(att, calYear, calMonth);
-  const unlogged = workdays - totalOffice - home - leave - holiday;
-
+  const {totalOffice,totalRequired,weeksOnTrack,weeksTotal,pct}=calcCompliance(att,calYear,calMonth);
+  const unlogged=workdays-totalOffice-home-leave-holiday;
   document.getElementById('stats-row').innerHTML=`
-    <div class="stat-card office">
-      <div class="stat-label">Office Days</div>
-      <div class="stat-value">${totalOffice}</div>
-      <div class="stat-sub">Required: ${totalRequired} (2/week adjusted)</div>
-    </div>
-    <div class="stat-card home">
-      <div class="stat-label">Work From Home</div>
-      <div class="stat-value">${home}</div>
-      <div class="stat-sub">${unlogged} day${unlogged!==1?'s':''} unlogged</div>
-    </div>
-    <div class="stat-card leave">
-      <div class="stat-label">Leave / Holiday</div>
-      <div class="stat-value">${leave + holiday}</div>
-      <div class="stat-sub">Reduces weekly requirement</div>
-    </div>
-    <div class="stat-card compliance">
-      <div class="stat-label">Compliance</div>
-      <div class="stat-value">${pct}%</div>
-      <div class="stat-sub">${weeksOnTrack}/${weeksTotal} weeks on track ${pct>=100?'✅':pct>=60?'⚠️':'🔴'}</div>
-    </div>`;
+    <div class="stat-card office"><div class="stat-label">Office Days (WFO)</div><div class="stat-value">${totalOffice}</div><div class="stat-sub">Required: ${totalRequired} (2/week adjusted)</div></div>
+    <div class="stat-card home"><div class="stat-label">Work From Home</div><div class="stat-value">${home}</div><div class="stat-sub">${unlogged} day${unlogged!==1?'s':''} unlogged</div></div>
+    <div class="stat-card leave"><div class="stat-label">Leave / Holiday</div><div class="stat-value">${leave+holiday}</div><div class="stat-sub">Reduces weekly requirement</div></div>
+    <div class="stat-card compliance"><div class="stat-label">Compliance</div><div class="stat-value">${pct}%</div><div class="stat-sub">${weeksOnTrack}/${weeksTotal} weeks on track ${pct>=100?'✅':pct>=60?'⚠️':'🔴'}</div></div>`;
 }
 
 // ═══════════════════════════════════════
 //  DAY MODAL
 // ═══════════════════════════════════════
-function openModal(key) {
+function openModal(key){
   const att=getAtt(currentUser.email);
   modalDate=key; selectedStatus=att[key]||null;
   const [y,m,d]=key.split('-');
   document.getElementById('modal-date-label').textContent=new Date(y,m-1,d).toLocaleDateString('en-US',{weekday:'long',day:'numeric',month:'long'});
-  document.querySelectorAll('.status-option').forEach(o=>{
-    o.className=`status-option${selectedStatus===o.dataset.status?` selected-${selectedStatus}`:''}`;
-  });
+  document.querySelectorAll('.status-option').forEach(o=>{o.className=`status-option${selectedStatus===o.dataset.status?` selected-${selectedStatus}`:''}`;});
   document.getElementById('day-modal').classList.add('open');
 }
-function closeModal(){ document.getElementById('day-modal').classList.remove('open'); modalDate=null; selectedStatus=null; }
-function selectStatus(s){
-  selectedStatus=s;
-  document.querySelectorAll('.status-option').forEach(o=>{o.className=`status-option${s===o.dataset.status?` selected-${s}`:''}`;});
-}
+function closeModal(){document.getElementById('day-modal').classList.remove('open');modalDate=null;selectedStatus=null;}
+function selectStatus(s){selectedStatus=s;document.querySelectorAll('.status-option').forEach(o=>{o.className=`status-option${s===o.dataset.status?` selected-${s}`:''}`;});}
 async function saveStatus(){
   if(!modalDate||!selectedStatus) return;
   const btn=document.getElementById('day-save-btn');
-  btn.disabled=true; btn.textContent='Saving…';
-  setSyncing(true);
-  try {
+  btn.disabled=true; btn.textContent='Saving…'; setSyncing(true);
+  try{
     const ek=emailKey(currentUser.email);
     if(!ATT[ek]) ATT[ek]={};
     ATT[ek][modalDate]=selectedStatus;
-    await fbSet(`attendance/${ek}/${modalDate}`, selectedStatus);
-    setSyncing(false);
-    showToast(`Status set: ${statusLabel(selectedStatus)}`);
-  } catch(e) { setSyncing(false,true); showToast('Save failed — check connection'); }
-  btn.disabled=false; btn.textContent='Save';
-  closeModal();
+    await fbSet(`attendance/${ek}/${modalDate}`,selectedStatus);
+    setSyncing(false); showToast(`Status: ${statusLabel(selectedStatus)}`);
+  }catch(e){setSyncing(false,true);showToast('Save failed');}
+  btn.disabled=false; btn.textContent='Save'; closeModal();
 }
 async function clearStatus(){
-  if(!modalDate) return;
-  setSyncing(true);
-  try {
+  if(!modalDate) return; setSyncing(true);
+  try{
     const ek=emailKey(currentUser.email);
     if(ATT[ek]) delete ATT[ek][modalDate];
     await fbRemove(`attendance/${ek}/${modalDate}`);
-    setSyncing(false);
-    showToast('Status cleared');
-  } catch(e){ setSyncing(false,true); }
+    setSyncing(false); showToast('Status cleared');
+  }catch(e){setSyncing(false,true);}
   closeModal();
 }
 document.getElementById('day-modal').addEventListener('click',e=>{if(e.target.id==='day-modal') closeModal();});
@@ -909,97 +815,164 @@ document.getElementById('day-modal').addEventListener('click',e=>{if(e.target.id
 function openProfileModal(){
   if(currentUser.role==='admin') return;
   const manager=currentUser.managerId?USERS[emailKey(currentUser.managerId)]:null;
-  const managers=getManagers().filter(m=>m.email!==currentUser.email);
-  let mgrSection='';
-  if(currentUser.role==='employee'){
-    const opts=managers.map(m=>`<option value="${m.email}" ${currentUser.managerId===m.email?'selected':''}>${m.name} (${m.email})</option>`).join('');
-    mgrSection=`
-      <div class="profile-section-title">Manager Assignment</div>
-      ${manager?`<div class="current-manager-badge">👔 Current: ${manager.name}</div>`:'<div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">No manager assigned yet</div>'}
-      <div class="profile-field">
-        <div class="profile-label">Select / Change Manager</div>
-        <select id="profile-manager" class="profile-select"><option value="">— No manager —</option>${opts}</select>
-      </div>`;
-  }
+  const allMgrs=getAllManagers().filter(m=>m.email!==currentUser.email);
+
+  // Manager section: employees can change manager, managers can also change their manager
+  const opts=allMgrs.map(m=>`<option value="${m.email}" ${currentUser.managerId===m.email?'selected':''}>${m.name} (${m.email})</option>`).join('');
+  const mgrSection=`
+    <div class="profile-section-title">${currentUser.role==='manager'?'Reports To':'Manager Assignment'}</div>
+    ${manager?`<div class="current-manager-badge">👔 Current: ${manager.name}</div>`:'<div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">No manager assigned yet</div>'}
+    <div class="profile-field">
+      <div class="profile-label">Select / Change Manager</div>
+      <select id="profile-manager" class="profile-select"><option value="">— No manager —</option>${opts}</select>
+    </div>`;
+
+  const pwSection=`
+    <div class="profile-section-title">Change Password</div>
+    <div class="profile-field"><div class="profile-label">New Password</div><input type="password" id="profile-pw" class="profile-input" placeholder="Leave blank to keep current"></div>
+    <div class="profile-field"><div class="profile-label">Confirm Password</div><input type="password" id="profile-pw2" class="profile-input" placeholder="Confirm new password"></div>`;
+
   document.getElementById('profile-modal-body').innerHTML=`
     <div class="profile-section-title">Personal Info</div>
     <div class="profile-field"><div class="profile-label">Full Name</div><input id="profile-name" class="profile-input" value="${currentUser.name}"></div>
     <div class="profile-field"><div class="profile-label">Email</div><input class="profile-input" value="${currentUser.email}" readonly></div>
     <div class="profile-field"><div class="profile-label">Role</div><input class="profile-input" value="${currentUser.role.charAt(0).toUpperCase()+currentUser.role.slice(1)}" readonly></div>
-    ${mgrSection}`;
+    ${mgrSection}${pwSection}`;
   document.getElementById('profile-modal').classList.add('open');
 }
-function closeProfileModal(){ document.getElementById('profile-modal').classList.remove('open'); }
+function closeProfileModal(){document.getElementById('profile-modal').classList.remove('open');}
 document.getElementById('profile-modal').addEventListener('click',e=>{if(e.target.id==='profile-modal') closeProfileModal();});
 
 async function saveProfile(){
   const name=document.getElementById('profile-name').value.trim();
+  const pw=document.getElementById('profile-pw').value;
+  const pw2=document.getElementById('profile-pw2').value;
   if(!name) return showToast('Name cannot be empty');
+  if(pw&&pw.length<6) return showToast('Password must be at least 6 characters');
+  if(pw&&pw!==pw2) return showToast('Passwords do not match');
   const btn=document.getElementById('profile-save-btn');
-  btn.disabled=true; btn.textContent='Saving…';
-  setSyncing(true);
-  try {
+  btn.disabled=true; btn.textContent='Saving…'; setSyncing(true);
+  try{
     currentUser.name=name;
-    if(currentUser.role==='employee') currentUser.managerId=document.getElementById('profile-manager').value||null;
-    await fbUpdate(`users/${emailKey(currentUser.email)}`, { name:currentUser.name, managerId:currentUser.managerId });
+    currentUser.managerId=document.getElementById('profile-manager').value||null;
+    const upd={name:currentUser.name,managerId:currentUser.managerId};
+    if(pw){currentUser.password=pw; upd.password=pw;}
+    await fbUpdate(`users/${emailKey(currentUser.email)}`,upd);
     USERS[emailKey(currentUser.email)]=currentUser;
     setSyncing(false);
     document.getElementById('header-name').textContent=currentUser.name;
     document.getElementById('header-avatar').textContent=initials(currentUser.name);
     closeProfileModal();
-    showToast('Profile saved to Firebase ✓');
-  } catch(e){ setSyncing(false,true); showToast('Save failed'); }
+    showToast('Profile saved ✓');
+  }catch(e){setSyncing(false,true);showToast('Save failed');}
   btn.disabled=false; btn.textContent='Save Changes';
 }
 
 // ═══════════════════════════════════════
-//  TEAM VIEW — Real-time
+//  ADD MEMBER MODAL (manager creates users)
+// ═══════════════════════════════════════
+function openAddMemberModal(){
+  hideError('add-member-error');
+  document.getElementById('am-name').value='';
+  document.getElementById('am-email').value='';
+  document.getElementById('am-password').value='';
+  document.getElementById('am-role').value='employee';
+
+  // Populate manager dropdown — all managers including current user
+  const snap=getAllManagers();
+  const sel=document.getElementById('am-manager');
+  sel.innerHTML=`<option value="">— No manager —</option>`;
+  snap.forEach(m=>{
+    const o=document.createElement('option');
+    o.value=m.email; o.textContent=`${m.name} (${m.email})`;
+    if(m.email===currentUser.email) o.selected=true;
+    sel.appendChild(o);
+  });
+
+  document.getElementById('am-manager-group').style.display='';
+  document.getElementById('add-member-modal').classList.add('open');
+}
+function closeAddMemberModal(){document.getElementById('add-member-modal').classList.remove('open');}
+document.getElementById('add-member-modal').addEventListener('click',e=>{if(e.target.id==='add-member-modal') closeAddMemberModal();});
+
+function toggleAmManager(){
+  const role=document.getElementById('am-role').value;
+  document.getElementById('am-manager-group').style.display=role==='employee'?'':'none';
+}
+
+async function saveNewMember(){
+  const name=document.getElementById('am-name').value.trim();
+  const email=document.getElementById('am-email').value.trim().toLowerCase();
+  const pass=document.getElementById('am-password').value;
+  const role=document.getElementById('am-role').value;
+  const mid=role==='employee'?(document.getElementById('am-manager').value||null):null;
+  hideError('add-member-error');
+  if(!name||!email||!pass) return showError('add-member-error','Please fill all fields.');
+  if(pass.length<4) return showError('add-member-error','Password must be at least 4 characters.');
+  const ek=emailKey(email);
+  const btn=document.getElementById('am-save-btn');
+  btn.disabled=true; btn.textContent='Creating…';
+  try{
+    const existing=await fbGet(`users/${ek}`);
+    if(existing){btn.disabled=false;btn.textContent='Create Member';return showError('add-member-error','Email already registered.');}
+    const colors=['#e05a2b','#2b7de0','#8b5cf6','#10b981','#f59e0b','#ec4899','#06b6d4'];
+    const newUser={id:email,name,email,password:pass,role,managerId:mid,color:colors[Math.floor(Math.random()*colors.length)],mustChangePw:true};
+    await fbSet(`users/${ek}`,newUser);
+    await fbSet(`attendance/${ek}`,{});
+    USERS[ek]=newUser;
+    btn.disabled=false; btn.textContent='Create Member';
+    closeAddMemberModal();
+    showToast(`${name} added — they must change password on first login`);
+    renderTeamView();
+  }catch(e){
+    btn.disabled=false; btn.textContent='Create Member';
+    showError('add-member-error','Connection error. Try again.');
+  }
+}
+
+// ═══════════════════════════════════════
+//  TEAM VIEW
 // ═══════════════════════════════════════
 async function renderTeamView(){
   if(currentUser.role!=='manager') return;
-
-  // Setup real-time listeners for all team members
   setupTeamListeners();
-
   const team=getTeam(currentUser.id);
-  // Fetch latest attendance from Firebase for all team members
-  await Promise.all(team.map(async m => {
+  await Promise.all(team.map(async m=>{
     const ek=emailKey(m.email);
     const att=await fbGet(`attendance/${ek}`);
     ATT[ek]=att||{};
   }));
-
   const selMonth=document.getElementById('team-month-filter').value;
   const [fy,fm]=selMonth.split('-').map(Number);
   const statusFilter=document.getElementById('team-status-filter').value;
   const today=ds(new Date());
   let rows='';
-
   team.forEach(member=>{
     const att=getAtt(member.email);
-    let office=0,home=0,leave=0,workdays=0;
+    let home=0,leave=0,workdays=0;
     for(let d=1;d<=new Date(fy,fm,0).getDate();d++){
       const date=new Date(fy,fm-1,d);
       if(date.getDay()===0||date.getDay()===6) continue;
       workdays++;
       const s=att[ds(date)];
-      if(s==='office') office++; if(s==='home') home++; if(s==='leave') leave++;
+      if(s==='home') home++; if(s==='leave') leave++;
     }
-    const req=Math.ceil(workdays/5)*2, pct=req>0?Math.round((office/req)*100):0;
+    const {totalOffice,totalRequired,pct}=calcCompliance(att,fy,fm-1);
     const todayStatus=att[today]||null;
     if(statusFilter&&todayStatus!==statusFilter) return;
     const cc=pct>=100?'bar-good':pct>=60?'bar-warn':'bar-bad';
+    const firstPw=member.mustChangePw?'<span style="font-size:11px;background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:10px;margin-left:6px">⚠ Pending first login</span>':'';
     rows+=`<tr>
       <td><div class="member-info"><div class="avatar" style="background:${member.color};width:32px;height:32px;font-size:12px">${initials(member.name)}</div>
-      <div><div style="font-weight:500">${member.name}</div><div style="font-size:12px;color:var(--text-muted)">${member.email}</div></div></div></td>
+      <div><div style="font-weight:500;display:flex;align-items:center">${member.name}${firstPw}</div><div style="font-size:12px;color:var(--text-muted)">${member.email}</div></div></div></td>
       <td>${todayStatus?`<span class="status-pill pill-${todayStatus}">${statusIcon(todayStatus)} ${statusLabel(todayStatus)}</span>`:'<span class="status-pill pill-none">Not logged</span>'}</td>
-      <td style="text-align:center"><strong>${office}</strong> <span style="color:var(--text-muted);font-size:12px">/ ${req}</span></td>
+      <td style="text-align:center"><strong>${totalOffice}</strong> <span style="color:var(--text-muted);font-size:12px">/ ${totalRequired}</span></td>
       <td style="text-align:center">${home}</td><td style="text-align:center">${leave}</td>
       <td><div class="compliance-bar"><div class="bar-track"><div class="bar-fill ${cc}" style="width:${Math.min(100,pct)}%"></div></div><span style="font-size:12px;font-weight:600">${pct}%</span></div></td>
     </tr>`;
   });
-  if(!rows) rows=`<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">No team members found</td></tr>`;
-  document.getElementById('team-table').innerHTML=`<table><thead><tr><th>Member</th><th>Today</th><th style="text-align:center">Office</th><th style="text-align:center">WFH</th><th style="text-align:center">Leave</th><th>Compliance</th></tr></thead><tbody>${rows}</tbody></table>`;
+  if(!rows) rows=`<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">No team members yet. Click "+ Add Team Member" to get started.</td></tr>`;
+  document.getElementById('team-table').innerHTML=`<table><thead><tr><th>Member</th><th>Today</th><th style="text-align:center">WFO</th><th style="text-align:center">WFH</th><th style="text-align:center">Leave</th><th>Compliance</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 // ═══════════════════════════════════════
@@ -1009,39 +982,27 @@ async function renderReports(){
   const selMonth=document.getElementById('report-month-filter').value;
   if(!selMonth) return;
   const [fy,fm]=selMonth.split('-').map(Number);
-  let userEmail=currentUser.email, reportName='My';
-
+  let userEmail=currentUser.email,reportName='My';
   if(currentUser.role==='manager'){
     const picker=document.getElementById('report-member-filter').value;
-    if(picker&&picker!=='__me__'){ userEmail=picker; reportName=(USERS[emailKey(picker)]?.name||'Team Member')+"'s"; }
+    if(picker&&picker!=='__me__'){userEmail=picker;reportName=(USERS[emailKey(picker)]?.name||'Member')+"'s";}
     document.getElementById('report-manager-picker').classList.remove('hidden');
     const pick=document.getElementById('report-member-filter');
-    if(pick.options.length<=1){
-      getTeam(currentUser.id).forEach(m=>{const o=document.createElement('option');o.value=m.email;o.textContent=m.name;pick.appendChild(o);});
-    }
-    // Fetch fresh attendance for selected member
+    if(pick.options.length<=1){getTeam(currentUser.id).forEach(m=>{const o=document.createElement('option');o.value=m.email;o.textContent=m.name;pick.appendChild(o);});}
     const ek=emailKey(userEmail);
-    const att=await fbGet(`attendance/${ek}`);
-    ATT[ek]=att||{};
+    const att=await fbGet(`attendance/${ek}`); ATT[ek]=att||{};
   }
-
   document.getElementById('report-user-label').textContent=`${reportName} attendance for ${MONTHS[fm-1]} ${fy}`;
   const att=getAtt(userEmail);
-  let office=0,home=0,leave=0,holiday=0,workdays=0;
-  const weeks={};
+  let home=0,leave=0,holiday=0;
   const dim=new Date(fy,fm,0).getDate();
   for(let d=1;d<=dim;d++){
     const date=new Date(fy,fm-1,d);
     if(date.getDay()===0||date.getDay()===6) continue;
-    workdays++;
-    const s=att[ds(date)], wn=Math.ceil(d/7);
-    if(!weeks[wn]) weeks[wn]={office:0,home:0,leave:0};
-    if(s==='office'){office++;weeks[wn].office++;}
-    else if(s==='home'){home++;weeks[wn].home++;}
-    else if(s==='leave'){leave++;weeks[wn].leave++;}
-    else if(s==='holiday') holiday++;
+    const s=att[ds(date)];
+    if(s==='home') home++; if(s==='leave') leave++; if(s==='holiday') holiday++;
   }
-  const req=Math.ceil(workdays/5)*2, pct=req>0?Math.min(100,Math.round((office/req)*100)):0;
+  const {totalOffice:office,totalRequired:req,weeksOnTrack,weeksTotal,pct,weekDetails}=calcCompliance(att,fy,fm-1);
   const total=office+home+leave+holiday;
   const cx=60,cy=60,r=46;
   let segs='',cum=0;
@@ -1051,13 +1012,17 @@ async function renderReports(){
     segs+=`<path d="M${cx},${cy} L${cx+r*Math.cos(sa)},${cy+r*Math.sin(sa)} A${r},${r} 0 ${s.val/(total||1)>.5?1:0},1 ${cx+r*Math.cos(ea)},${cy+r*Math.sin(ea)} Z" fill="${s.color}" opacity=".85"/>`;
     cum+=s.val;
   });
-  const weekRows=Object.entries(weeks).map(([wn,w])=>`
-    <div class="week-row"><span style="font-weight:500">Week ${wn}</span><div class="week-badges">
-      <span class="status-pill pill-office" style="font-size:11px;padding:2px 7px">🏢 ${w.office}</span>
-      <span class="status-pill pill-home" style="font-size:11px;padding:2px 7px">🏠 ${w.home}</span>
-      ${w.leave?`<span class="status-pill pill-leave" style="font-size:11px;padding:2px 7px">🌴 ${w.leave}</span>`:''}
-    </div></div>`).join('');
-
+  const weekRows=weekDetails.map(w=>`
+    <div class="week-row" style="background:${w.met?'rgba(16,185,129,0.12)':'rgba(224,90,43,0.12)'};border:1px solid ${w.met?'rgba(16,185,129,0.3)':'rgba(224,90,43,0.3)'}">
+      <span style="font-weight:500">w/c ${w.wk}</span>
+      <div class="week-badges">
+        <span class="status-pill pill-office" style="font-size:11px;padding:2px 7px">🏢 ${w.office}/${w.req}</span>
+        <span class="status-pill pill-home" style="font-size:11px;padding:2px 7px">🏠 ${w.home||0}</span>
+        ${w.leave?`<span class="status-pill pill-leave" style="font-size:11px;padding:2px 7px">🌴 ${w.leave}</span>`:''}
+        ${w.holiday?`<span class="status-pill pill-holiday" style="font-size:11px;padding:2px 7px">🎉 ${w.holiday}</span>`:''}
+        <span style="font-size:11px;font-weight:600;color:${w.met?'var(--holiday)':'var(--office)'}">${w.met?'✅ Met':'🔴 Not Met'}</span>
+      </div>
+    </div>`).join('');
   document.getElementById('report-grid').innerHTML=`
     <div class="report-card">
       <div class="report-card-title">Attendance Breakdown</div>
@@ -1069,7 +1034,7 @@ async function renderReports(){
           <text x="${cx}" y="${cy+12}" text-anchor="middle" font-size="9" fill="var(--text-muted)">days logged</text>
         </svg>
         <div class="donut-legend">
-          <div class="donut-item"><div class="donut-swatch" style="background:var(--office)"></div>Office<span class="donut-count">${office}</span></div>
+          <div class="donut-item"><div class="donut-swatch" style="background:var(--office)"></div>WFO<span class="donut-count">${office}</span></div>
           <div class="donut-item"><div class="donut-swatch" style="background:var(--home)"></div>WFH<span class="donut-count">${home}</span></div>
           <div class="donut-item"><div class="donut-swatch" style="background:var(--leave)"></div>Leave<span class="donut-count">${leave}</span></div>
           <div class="donut-item"><div class="donut-swatch" style="background:var(--holiday)"></div>Holiday<span class="donut-count">${holiday}</span></div>
@@ -1078,10 +1043,10 @@ async function renderReports(){
     </div>
     <div class="report-card">
       <div class="report-card-title">Office Compliance</div>
-      <div style="margin-bottom:12px;display:flex;justify-content:space-between;font-size:13px"><span>Office: <strong>${office}</strong></span><span>Required: <strong>${req}</strong></span></div>
+      <div style="margin-bottom:12px;display:flex;justify-content:space-between;font-size:13px"><span>WFO: <strong>${office}</strong></span><span>Required: <strong>${req}</strong></span></div>
       <div style="height:12px;background:var(--warm-mid);border-radius:99px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${Math.min(100,pct)}%;background:${pct>=100?'var(--holiday)':pct>=60?'#f59e0b':'var(--office)'};border-radius:99px"></div></div>
       <div style="font-size:28px;font-family:Syne,sans-serif;font-weight:700;color:${pct>=100?'var(--holiday)':pct>=60?'#f59e0b':'var(--office)'}">${pct}% ${pct>=100?'✅':pct>=60?'⚠️':'🔴'}</div>
-      <div style="font-size:12px;color:var(--text-muted);margin-top:6px;background:var(--warm-mid);padding:10px;border-radius:8px">📋 Policy: Min 2 office days/week (~${req} days for ${MONTHS[fm-1]})</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:6px;background:var(--warm-mid);padding:10px;border-radius:8px">📋 Min 2 WFO days/week. Leave & holidays reduce requirement.</div>
     </div>
     <div class="report-card" style="grid-column:1/-1">
       <div class="report-card-title">Week-by-Week Breakdown</div>
@@ -1093,13 +1058,12 @@ async function renderReports(){
 //  ADMIN PANEL
 // ═══════════════════════════════════════
 async function renderAdminPanel(){
-  const snap=await fbGet('users');
-  USERS=snap||{};
+  const snap=await fbGet('users'); USERS=snap||{};
   renderAdminStats(); renderAdminTable();
 }
 function renderAdminStats(){
   const all=getAllNonAdmin();
-  const emp=all.filter(u=>u.role==='employee'), mgr=all.filter(u=>u.role==='manager');
+  const emp=all.filter(u=>u.role==='employee'),mgr=all.filter(u=>u.role==='manager');
   document.getElementById('admin-stats').innerHTML=`
     <div class="admin-stat"><div class="admin-stat-value">${all.length}</div><div class="admin-stat-label">Total Users</div></div>
     <div class="admin-stat"><div class="admin-stat-value" style="color:var(--office)">${mgr.length}</div><div class="admin-stat-label">Managers</div></div>
@@ -1109,18 +1073,18 @@ function renderAdminTable(){
   const q=(document.getElementById('admin-search')?.value||'').toLowerCase();
   const rf=document.getElementById('admin-role-filter')?.value||'';
   const all=getAllNonAdmin().filter(u=>{
-    const mq=!q||u.name.toLowerCase().includes(q)||u.email.toLowerCase().includes(q);
-    return mq&&(!rf||u.role===rf);
+    return (!q||u.name.toLowerCase().includes(q)||u.email.toLowerCase().includes(q))&&(!rf||u.role===rf);
   });
   let rows='';
   all.forEach(u=>{
     const mgr=u.managerId?USERS[emailKey(u.managerId)]:null;
     const ts=u.role==='manager'?getTeam(u.id).length:null;
+    const firstPw=u.mustChangePw?'<span style="font-size:11px;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:8px;margin-left:6px">⚠ First login pending</span>':'';
     rows+=`<tr>
       <td><div class="member-info"><div class="avatar" style="background:${u.color};width:32px;height:32px;font-size:12px">${initials(u.name)}</div>
-      <div><div style="font-weight:500">${u.name}</div><div style="font-size:12px;color:var(--text-muted)">${u.email}</div></div></div></td>
+      <div><div style="font-weight:500;display:flex;align-items:center">${u.name}${firstPw}</div><div style="font-size:12px;color:var(--text-muted)">${u.email}</div></div></div></td>
       <td><span class="status-pill pill-${u.role}">${u.role==='manager'?'👔':'👤'} ${u.role.charAt(0).toUpperCase()+u.role.slice(1)}</span></td>
-      <td>${mgr?`<div class="member-info"><div class="avatar" style="background:${mgr.color};width:24px;height:24px;font-size:10px">${initials(mgr.name)}</div><span style="font-size:13px">${mgr.name}</span></div>`:u.role==='manager'?'<span style="color:var(--text-muted);font-size:12px">— (Is a manager)</span>':'<span style="font-size:12px;color:#f59e0b">⚠ Unassigned</span>'}</td>
+      <td>${mgr?`<div class="member-info"><div class="avatar" style="background:${mgr.color};width:24px;height:24px;font-size:10px">${initials(mgr.name)}</div><span style="font-size:13px">${mgr.name}</span></div>`:u.role==='manager'?'<span style="color:var(--text-muted);font-size:12px">—</span>':'<span style="font-size:12px;color:#f59e0b">⚠ Unassigned</span>'}</td>
       <td style="font-size:13px;color:var(--text-muted)">${u.role==='manager'?`<strong style="color:var(--ink)">${ts}</strong> member${ts!==1?'s':''}`:  '—'}</td>
       <td style="font-size:12px;color:var(--text-muted)">${u.email}</td>
     </tr>`;
@@ -1130,184 +1094,98 @@ function renderAdminTable(){
 }
 
 // ═══════════════════════════════════════
-//  EXPORT TO EXCEL
+//  EXPORT
 // ═══════════════════════════════════════
-function openExportModal() {
-  // Populate month dropdown
-  const sel = document.getElementById('export-month');
-  sel.innerHTML = '';
-  const now = new Date();
-  for (let i = -3; i <= 2; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    const val = `${d.getFullYear()}-${d.getMonth()+1}`;
-    const o = document.createElement('option');
-    o.value = val; o.textContent = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-    if (i === 0) o.selected = true;
+function openExportModal(){
+  const sel=document.getElementById('export-month');
+  sel.innerHTML='';
+  const now=new Date();
+  for(let i=-3;i<=2;i++){
+    const d=new Date(now.getFullYear(),now.getMonth()+i,1);
+    const o=document.createElement('option');
+    o.value=`${d.getFullYear()}-${d.getMonth()+1}`;
+    o.textContent=`${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    if(i===0) o.selected=true;
     sel.appendChild(o);
   }
-
-  // Populate member checkboxes
-  const team = getTeam(currentUser.id);
-  const list = document.getElementById('export-member-list');
-  list.innerHTML = '';
-  team.forEach(m => {
-    list.innerHTML += `
-      <label class="export-member-item">
-        <input type="checkbox" value="${m.email}" checked>
-        <div class="avatar" style="background:${m.color};width:28px;height:28px;font-size:11px;flex-shrink:0">${initials(m.name)}</div>
-        <div>
-          <div style="font-weight:500;font-size:14px">${m.name}</div>
-          <div style="font-size:12px;color:var(--text-muted)">${m.email}</div>
-        </div>
-      </label>`;
+  const team=getTeam(currentUser.id);
+  const list=document.getElementById('export-member-list');
+  list.innerHTML='';
+  team.forEach(m=>{
+    list.innerHTML+=`<label class="export-member-item"><input type="checkbox" value="${m.email}" checked>
+      <div class="avatar" style="background:${m.color};width:28px;height:28px;font-size:11px;flex-shrink:0">${initials(m.name)}</div>
+      <div><div style="font-weight:500;font-size:14px">${m.name}</div><div style="font-size:12px;color:var(--text-muted)">${m.email}</div></div></label>`;
   });
-
   document.getElementById('export-modal').classList.add('open');
 }
+function closeExportModal(){document.getElementById('export-modal').classList.remove('open');}
+document.getElementById('export-modal').addEventListener('click',e=>{if(e.target.id==='export-modal') closeExportModal();});
+function selectAllExport(v){document.querySelectorAll('#export-member-list input[type=checkbox]').forEach(cb=>cb.checked=v);}
 
-function closeExportModal() { document.getElementById('export-modal').classList.remove('open'); }
-document.getElementById('export-modal').addEventListener('click', e => { if (e.target.id === 'export-modal') closeExportModal(); });
-
-function selectAllExport(val) {
-  document.querySelectorAll('#export-member-list input[type=checkbox]').forEach(cb => cb.checked = val);
-}
-
-async function doExport() {
-  const selMonth = document.getElementById('export-month').value;
-  const [fy, fm] = selMonth.split('-').map(Number);
-  const selectedEmails = [...document.querySelectorAll('#export-member-list input[type=checkbox]:checked')].map(cb => cb.value);
-  if (!selectedEmails.length) { showToast('Please select at least one employee'); return; }
-
-  const btn = document.querySelector('#export-modal .btn-save');
-  btn.disabled = true; btn.textContent = 'Preparing…';
-
-  for (const email of selectedEmails) {
-    const ek = emailKey(email);
-    if (!ATT[ek]) { const att = await fbGet(`attendance/${ek}`); ATT[ek] = att || {}; }
+async function doExport(){
+  const selMonth=document.getElementById('export-month').value;
+  const [fy,fm]=selMonth.split('-').map(Number);
+  const selectedEmails=[...document.querySelectorAll('#export-member-list input[type=checkbox]:checked')].map(cb=>cb.value);
+  if(!selectedEmails.length){showToast('Select at least one employee');return;}
+  const btn=document.querySelector('#export-modal .btn-save');
+  btn.disabled=true; btn.textContent='Preparing…';
+  for(const email of selectedEmails){
+    const ek=emailKey(email);
+    if(!ATT[ek]){const att=await fbGet(`attendance/${ek}`);ATT[ek]=att||{};}
   }
-
-  const dim = new Date(fy, fm, 0).getDate();
-  const monthName = MONTHS[fm - 1];
-  const workDays = [];
-  for (let d = 1; d <= dim; d++) {
-    const date = new Date(fy, fm - 1, d);
-    if (date.getDay() !== 0 && date.getDay() !== 6) workDays.push(date);
-  }
-
-  // ── Build one CSV per employee, merge into multi-sheet HTML table trick ──
-  // We use an HTML table exported as .xls (true color support via inline styles)
-  let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
-  html += '<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>';
-
-  selectedEmails.forEach((email, idx) => {
-    const member = USERS[emailKey(email)];
-    if (!member) return;
-    html += `<x:ExcelWorksheet><x:Name>${member.name.slice(0,28).replace(/[&<>]/g,'')}</x:Name><x:WorksheetOptions><x:Selected/></x:WorksheetOptions></x:ExcelWorksheet>`;
+  const dim=new Date(fy,fm,0).getDate(), monthName=MONTHS[fm-1];
+  const workDays=[];
+  for(let d=1;d<=dim;d++){const date=new Date(fy,fm-1,d);if(date.getDay()!==0&&date.getDay()!==6) workDays.push(date);}
+  const statusColors={office:{bg:'#FDF0EB',color:'#E05A2B',label:'WFO'},home:{bg:'#EBF3FD',color:'#2B7DE0',label:'WFH'},leave:{bg:'#F3EFFE',color:'#8B5CF6',label:'Leave'},holiday:{bg:'#ECFDF5',color:'#10B981',label:'Holiday'}};
+  let html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>';
+  selectedEmails.forEach((email)=>{const m=USERS[emailKey(email)];if(!m) return;html+=`<x:ExcelWorksheet><x:Name>${m.name.slice(0,28).replace(/[&<>]/g,'')}</x:Name><x:WorksheetOptions><x:Selected/></x:WorksheetOptions></x:ExcelWorksheet>`;});
+  html+='</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>';
+  selectedEmails.forEach((email,idx)=>{
+    const member=USERS[emailKey(email)]; if(!member) return;
+    const att=ATT[emailKey(email)]||{};
+    const {weekDetails,totalOffice,totalRequired,weeksOnTrack,weeksTotal,pct}=calcCompliance(att,fy,fm-1);
+    const sn=member.name.slice(0,28).replace(/[&<>]/g,'');
+    html+=`<table x:Name="${sn}" style="border-collapse:collapse;font-family:Arial;font-size:11px">`;
+    html+=`<tr><td colspan="${workDays.length+1}" style="background:#0F0E17;color:#FFFCF5;font-size:13px;font-weight:bold;padding:8px 12px">${member.name} — ${monthName} ${fy}</td></tr><tr><td colspan="${workDays.length+1}"></td></tr>`;
+    html+=`<tr><td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;padding:6px 8px;border:1px solid #333">Status</td>`;
+    workDays.forEach(d=>{html+=`<td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 4px;border:1px solid #333">${d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}</td>`;});
+    html+='</tr><tr><td style="font-weight:bold;padding:6px 8px;border:1px solid #ddd">Status</td>';
+    workDays.forEach(date=>{
+      const s=att[ds(date)]||'';
+      const sc=statusColors[s];
+      if(sc) html+=`<td style="background:${sc.bg};color:${sc.color};font-weight:bold;text-align:center;padding:6px 4px;border:1px solid #ddd">${sc.label}</td>`;
+      else html+=`<td style="text-align:center;padding:6px 4px;border:1px solid #ddd;color:#999">—</td>`;
+    });
+    html+=`</tr><tr><td colspan="${workDays.length+1}" style="padding:4px"></td></tr>`;
+    html+=`<tr><td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;padding:6px 8px;border:1px solid #333">Week Starting</td><td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">WFO</td><td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">WFH</td><td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">Leave</td><td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">Holiday</td><td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">Required WFO</td><td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">Compliance</td></tr>`;
+    weekDetails.forEach(w=>{
+      const bg=w.met?'#D1FAE5':'#FEE2E2',fg=w.met?'#065F46':'#991B1B',mark=w.met?'Met ✓':'Not Met ✗';
+      html+=`<tr style="background:${bg};color:${fg}"><td style="padding:6px 8px;border:1px solid #ccc;font-weight:500">${w.wk}</td><td style="text-align:center;padding:6px 8px;border:1px solid #ccc">${w.office}</td><td style="text-align:center;padding:6px 8px;border:1px solid #ccc">${w.home||0}</td><td style="text-align:center;padding:6px 8px;border:1px solid #ccc">${w.leave||0}</td><td style="text-align:center;padding:6px 8px;border:1px solid #ccc">${w.holiday||0}</td><td style="text-align:center;padding:6px 8px;border:1px solid #ccc">${w.req}</td><td style="text-align:center;padding:6px 8px;border:1px solid #ccc;font-weight:bold">${mark}</td></tr>`;
+    });
+    html+=`<tr><td colspan="7" style="padding:4px"></td></tr>`;
+    html+=`<tr><td colspan="7" style="background:#F2EDE4;font-weight:bold;font-size:12px;padding:6px 8px;border:1px solid #ddd">Summary</td></tr>`;
+    html+=`<tr><td style="padding:5px 8px;border:1px solid #eee">Total WFO Days</td><td style="font-weight:bold;text-align:center;border:1px solid #eee">${totalOffice}</td></tr>`;
+    html+=`<tr><td style="padding:5px 8px;border:1px solid #eee">Required WFO Days</td><td style="font-weight:bold;text-align:center;border:1px solid #eee">${totalRequired}</td></tr>`;
+    html+=`<tr><td style="padding:5px 8px;border:1px solid #eee">Weeks On Track</td><td style="font-weight:bold;text-align:center;border:1px solid #eee">${weeksOnTrack}/${weeksTotal}</td></tr>`;
+    const pc=pct>=100?'#065F46':pct>=60?'#92400E':'#991B1B',pb=pct>=100?'#D1FAE5':pct>=60?'#FEF3C7':'#FEE2E2';
+    html+=`<tr><td style="padding:5px 8px;border:1px solid #eee">Compliance %</td><td style="font-weight:bold;text-align:center;background:${pb};color:${pc};border:1px solid #eee">${pct}%</td></tr>`;
+    html+='</table>';
+    if(idx<selectedEmails.length-1) html+='<br clear="all" style="mso-special-character:line-break;page-break-before:always">';
   });
-
-  html += '</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>';
-
-  const statusColors = {
-    office:  { bg:'#FDF0EB', color:'#E05A2B', label:'WFO' },
-    home:    { bg:'#EBF3FD', color:'#2B7DE0', label:'WFH' },
-    leave:   { bg:'#F3EFFE', color:'#8B5CF6', label:'Leave' },
-    holiday: { bg:'#ECFDF5', color:'#10B981', label:'Holiday' },
-  };
-
-  selectedEmails.forEach((email, idx) => {
-    const member = USERS[emailKey(email)];
-    if (!member) return;
-    const att = ATT[emailKey(email)] || {};
-    const { weekDetails, totalOffice, totalRequired, weeksOnTrack, weeksTotal, pct } = calcCompliance(att, fy, fm - 1);
-
-    const sheetName = member.name.slice(0,28).replace(/[&<>]/g,'');
-    html += `<table x:Name="${sheetName}" style="border-collapse:collapse;font-family:Arial;font-size:11px">`;
-
-    // Title
-    html += `<tr><td colspan="${workDays.length + 1}" style="background:#0F0E17;color:#FFFCF5;font-size:13px;font-weight:bold;padding:8px 12px">${member.name} — Attendance: ${monthName} ${fy}</td></tr>`;
-    html += `<tr><td colspan="${workDays.length + 1}"></td></tr>`;
-
-    // Date headers
-    html += `<tr><td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;padding:6px 8px;border:1px solid #333">Status</td>`;
-    workDays.forEach(d => {
-      html += `<td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 4px;border:1px solid #333">${d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}</td>`;
-    });
-    html += '</tr>';
-
-    // Status row
-    html += `<tr><td style="font-weight:bold;padding:6px 8px;border:1px solid #ddd">Status</td>`;
-    workDays.forEach(date => {
-      const s = att[ds(date)] || '';
-      const sc = statusColors[s];
-      if (sc) {
-        html += `<td style="background:${sc.bg};color:${sc.color};font-weight:bold;text-align:center;padding:6px 4px;border:1px solid #ddd">${sc.label}</td>`;
-      } else {
-        html += `<td style="text-align:center;padding:6px 4px;border:1px solid #ddd;color:#999">—</td>`;
-      }
-    });
-    html += '</tr>';
-
-    // Spacer
-    html += `<tr><td colspan="${workDays.length + 1}" style="padding:4px"></td></tr>`;
-
-    // Weekly compliance header
-    html += `<tr>
-      <td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;padding:6px 8px;border:1px solid #333">Week Starting</td>
-      <td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">WFO Days</td>
-      <td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">WFH Days</td>
-      <td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">Leave</td>
-      <td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">Holiday</td>
-      <td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">Required WFO</td>
-      <td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">Compliance</td>
-    </tr>`;
-
-    // Weekly rows — GREEN or RED background
-    weekDetails.forEach(w => {
-      const bg   = w.met ? '#D1FAE5' : '#FEE2E2';
-      const fg   = w.met ? '#065F46' : '#991B1B';
-      const mark = w.met ? 'Met ✓'  : 'Not Met ✗';
-      html += `<tr style="background:${bg};color:${fg}">
-        <td style="padding:6px 8px;border:1px solid #ccc;font-weight:500">${w.wk}</td>
-        <td style="text-align:center;padding:6px 8px;border:1px solid #ccc">${w.office}</td>
-        <td style="text-align:center;padding:6px 8px;border:1px solid #ccc">${w.home||0}</td>
-        <td style="text-align:center;padding:6px 8px;border:1px solid #ccc">${w.leave||0}</td>
-        <td style="text-align:center;padding:6px 8px;border:1px solid #ccc">${w.holiday||0}</td>
-        <td style="text-align:center;padding:6px 8px;border:1px solid #ccc">${w.req}</td>
-        <td style="text-align:center;padding:6px 8px;border:1px solid #ccc;font-weight:bold">${mark}</td>
-      </tr>`;
-    });
-
-    // Spacer
-    html += `<tr><td colspan="7" style="padding:4px"></td></tr>`;
-
-    // Summary
-    html += `<tr><td colspan="7" style="background:#F2EDE4;font-weight:bold;font-size:12px;padding:6px 8px;border:1px solid #ddd">Summary</td></tr>`;
-    html += `<tr><td style="padding:5px 8px;border:1px solid #eee">Total WFO Days</td><td style="font-weight:bold;text-align:center;border:1px solid #eee">${totalOffice}</td></tr>`;
-    html += `<tr><td style="padding:5px 8px;border:1px solid #eee">Required WFO Days</td><td style="font-weight:bold;text-align:center;border:1px solid #eee">${totalRequired}</td></tr>`;
-    html += `<tr><td style="padding:5px 8px;border:1px solid #eee">Weeks On Track</td><td style="font-weight:bold;text-align:center;border:1px solid #eee">${weeksOnTrack}/${weeksTotal}</td></tr>`;
-    const pctColor = pct >= 100 ? '#065F46' : pct >= 60 ? '#92400E' : '#991B1B';
-    const pctBg    = pct >= 100 ? '#D1FAE5' : pct >= 60 ? '#FEF3C7' : '#FEE2E2';
-    html += `<tr><td style="padding:5px 8px;border:1px solid #eee">Compliance %</td><td style="font-weight:bold;text-align:center;background:${pctBg};color:${pctColor};border:1px solid #eee">${pct}%</td></tr>`;
-
-    html += '</table>';
-    // Sheet break
-    if (idx < selectedEmails.length - 1) html += '<br clear="all" style="mso-special-character:line-break;page-break-before:always">';
-  });
-
-  html += '</body></html>';
-
-  // Download as .xls (Excel-compatible HTML)
-  const base64 = btoa(unescape(encodeURIComponent(html)));
-  const a = document.createElement('a');
-  a.href = `data:application/vnd.ms-excel;base64,${base64}`;
-  a.download = `WorkSync_${monthName}_${fy}_Attendance.xls`;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a);
-
-  btn.disabled = false; btn.textContent = '⬇ Download Excel';
+  html+='</body></html>';
+  const base64=btoa(unescape(encodeURIComponent(html)));
+  const a=document.createElement('a');
+  a.href=`data:application/vnd.ms-excel;base64,${base64}`;
+  a.download=`WorkSync_${monthName}_${fy}_Attendance.xls`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  btn.disabled=false; btn.textContent='⬇ Download Excel';
   closeExportModal();
-  showToast(`Exported ${selectedEmails.length} employee${selectedEmails.length > 1 ? 's' : ''} — ${monthName} ${fy}`);
+  showToast(`Exported ${selectedEmails.length} employee${selectedEmails.length>1?'s':''} — ${monthName} ${fy}`);
 }
+
+// ═══════════════════════════════════════
+//  MONTH FILTERS
+// ═══════════════════════════════════════
 function populateMonthFilters(){
   const now=new Date(); let html='';
   for(let i=-3;i<=2;i++){

@@ -196,6 +196,11 @@
   .search-bar{padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;background:var(--surface);width:240px;}
   .search-bar:focus{border-color:var(--office);}
 
+  .btn-export{padding:8px 16px;background:var(--holiday);color:white;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .2s;}
+  .btn-export:hover{opacity:.85;}
+  .export-member-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background .15s;}
+  .export-member-item:hover{background:var(--warm-mid);}
+  .export-member-item input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--office);}
   /* REPORTS */
   .report-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;}
   .report-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
@@ -356,7 +361,31 @@
   </main>
 </div>
 
-<!-- DAY MODAL -->
+<!-- EXPORT MODAL -->
+<div class="modal-overlay" id="export-modal">
+  <div class="modal" style="width:460px">
+    <div class="modal-title">⬇ Export to Excel</div>
+    <div style="margin-bottom:14px">
+      <div class="profile-label" style="margin-bottom:8px">Select Month</div>
+      <select id="export-month" class="profile-select"></select>
+    </div>
+    <div style="margin-bottom:18px">
+      <div class="profile-label" style="margin-bottom:8px">Select Employees</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button onclick="selectAllExport(true)" style="font-size:12px;padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:var(--warm-mid);cursor:pointer">Select All</button>
+        <button onclick="selectAllExport(false)" style="font-size:12px;padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:var(--warm-mid);cursor:pointer">Deselect All</button>
+      </div>
+      <div id="export-member-list" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+    <div style="background:var(--warm-mid);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text-muted);margin-bottom:18px">
+      📋 Export includes: daily status, office/WFH/leave counts, compliance % per week
+    </div>
+    <div class="modal-actions">
+      <button class="btn-save" onclick="doExport()">⬇ Download Excel</button>
+      <button class="btn-cancel" onclick="closeExportModal()">Cancel</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="day-modal">
   <div class="modal">
     <div class="modal-title" id="modal-date-label"></div>
@@ -769,7 +798,7 @@ function calcCompliance(att, year, month) {
   const weekDetails = [];
 
   Object.entries(weeks).forEach(([wk, w]) => {
-    const req = Math.max(0, 2 - w.leave - w.holiday);
+    const req = Math.max(0, 2 - (w.leave + w.holiday));
     const met = w.office >= req;
     totalRequired += req;
     totalOffice   += w.office;
@@ -1097,8 +1126,127 @@ function renderAdminTable(){
 }
 
 // ═══════════════════════════════════════
-//  MONTH FILTERS
+//  EXPORT TO EXCEL
 // ═══════════════════════════════════════
+function openExportModal() {
+  // Populate month dropdown
+  const sel = document.getElementById('export-month');
+  sel.innerHTML = '';
+  const now = new Date();
+  for (let i = -3; i <= 2; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const val = `${d.getFullYear()}-${d.getMonth()+1}`;
+    const o = document.createElement('option');
+    o.value = val; o.textContent = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    if (i === 0) o.selected = true;
+    sel.appendChild(o);
+  }
+
+  // Populate member checkboxes
+  const team = getTeam(currentUser.id);
+  const list = document.getElementById('export-member-list');
+  list.innerHTML = '';
+  team.forEach(m => {
+    list.innerHTML += `
+      <label class="export-member-item">
+        <input type="checkbox" value="${m.email}" checked>
+        <div class="avatar" style="background:${m.color};width:28px;height:28px;font-size:11px;flex-shrink:0">${initials(m.name)}</div>
+        <div>
+          <div style="font-weight:500;font-size:14px">${m.name}</div>
+          <div style="font-size:12px;color:var(--text-muted)">${m.email}</div>
+        </div>
+      </label>`;
+  });
+
+  document.getElementById('export-modal').classList.add('open');
+}
+
+function closeExportModal() { document.getElementById('export-modal').classList.remove('open'); }
+document.getElementById('export-modal').addEventListener('click', e => { if (e.target.id === 'export-modal') closeExportModal(); });
+
+function selectAllExport(val) {
+  document.querySelectorAll('#export-member-list input[type=checkbox]').forEach(cb => cb.checked = val);
+}
+
+async function doExport() {
+  const selMonth = document.getElementById('export-month').value;
+  const [fy, fm] = selMonth.split('-').map(Number);
+  const selectedEmails = [...document.querySelectorAll('#export-member-list input[type=checkbox]:checked')].map(cb => cb.value);
+
+  if (!selectedEmails.length) { showToast('Please select at least one employee'); return; }
+
+  const btn = document.querySelector('#export-modal .btn-save');
+  btn.disabled = true; btn.textContent = 'Preparing…';
+
+  // Fetch attendance for all selected members
+  for (const email of selectedEmails) {
+    const ek = emailKey(email);
+    if (!ATT[ek]) {
+      const att = await fbGet(`attendance/${ek}`);
+      ATT[ek] = att || {};
+    }
+  }
+
+  // Build CSV rows
+  const dim = new Date(fy, fm, 0).getDate();
+  const monthName = MONTHS[fm - 1];
+
+  // Collect all working days in month
+  const workDays = [];
+  for (let d = 1; d <= dim; d++) {
+    const date = new Date(fy, fm - 1, d);
+    if (date.getDay() !== 0 && date.getDay() !== 6) workDays.push(date);
+  }
+
+  // Header row: Name, Email, then each date, then summary cols
+  const dateHeaders = workDays.map(d => d.toLocaleDateString('en-GB', { day:'2-digit', month:'short' }));
+  const headers = ['Employee', 'Email', ...dateHeaders, '', 'Office Days', 'WFH Days', 'Leave Days', 'Holiday Days', 'Required Office', 'Compliance %', 'Weeks On Track'];
+
+  const rows = [headers];
+
+  selectedEmails.forEach(email => {
+    const member = USERS[emailKey(email)];
+    if (!member) return;
+    const att = ATT[emailKey(email)] || {};
+
+    // Daily status row
+    const dailyCells = workDays.map(date => {
+      const s = att[ds(date)] || '';
+      return { office: '🏢 Office', home: '🏠 WFH', leave: '🌴 Leave', holiday: '🎉 Holiday' }[s] || '—';
+    });
+
+    // Summary
+    let office = 0, home = 0, leave = 0, holiday = 0;
+    workDays.forEach(date => {
+      const s = att[ds(date)];
+      if (s === 'office') office++;
+      else if (s === 'home') home++;
+      else if (s === 'leave') leave++;
+      else if (s === 'holiday') holiday++;
+    });
+
+    const { totalRequired, weeksOnTrack, weeksTotal, pct } = calcCompliance(att, fy, fm - 1);
+
+    rows.push([member.name, member.email, ...dailyCells, '', office, home, leave, holiday, totalRequired, `${pct}%`, `${weeksOnTrack}/${weeksTotal}`]);
+  });
+
+  // Convert to CSV string
+  const csv = rows.map(row =>
+    row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+  ).join('\n');
+
+  // Download as .csv using base64 data URL (works in sandboxed iframes)
+  const base64 = btoa(unescape(encodeURIComponent('\uFEFF' + csv)));
+  const a = document.createElement('a');
+  a.href = `data:text/csv;charset=utf-8;base64,${base64}`;
+  a.download = `WorkSync_${monthName}_${fy}_Attendance.csv`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+
+  btn.disabled = false; btn.textContent = '⬇ Download Excel';
+  closeExportModal();
+  showToast(`Exported ${selectedEmails.length} employee${selectedEmails.length > 1 ? 's' : ''} for ${monthName} ${fy}`);
+}
 function populateMonthFilters(){
   const now=new Date(); let html='';
   for(let i=-3;i<=2;i++){

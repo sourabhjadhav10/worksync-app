@@ -8,6 +8,7 @@
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<!-- SheetJS for Excel export with formatting -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
@@ -417,7 +418,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v30</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: vr30</div>
 
 <script>
 // ═══════════════════════════════════════
@@ -1175,187 +1176,169 @@ async function doExport() {
   const selMonth = document.getElementById('export-month').value;
   const [fy, fm] = selMonth.split('-').map(Number);
   const selectedEmails = [...document.querySelectorAll('#export-member-list input[type=checkbox]:checked')].map(cb => cb.value);
-
   if (!selectedEmails.length) { showToast('Please select at least one employee'); return; }
 
   const btn = document.querySelector('#export-modal .btn-save');
   btn.disabled = true; btn.textContent = 'Preparing…';
 
-  // Collect all working days in month
-  const monthName = MONTHS[fm - 1];
+  // Fetch attendance
+  for (const email of selectedEmails) {
+    const ek = emailKey(email);
+    if (!ATT[ek]) { const att = await fbGet(`attendance/${ek}`); ATT[ek] = att || {}; }
+  }
+
   const dim = new Date(fy, fm, 0).getDate();
+  const monthName = MONTHS[fm - 1];
   const workDays = [];
   for (let d = 1; d <= dim; d++) {
     const date = new Date(fy, fm - 1, d);
     if (date.getDay() !== 0 && date.getDay() !== 6) workDays.push(date);
   }
 
-  // Fetch attendance for all selected members
-  for (const email of selectedEmails) {
-    const ek = emailKey(email);
-    if (!ATT[ek]) {
-      const att = await fbGet(`attendance/${ek}`);
-      ATT[ek] = att || {};
-    }
-  }
-
-  // ── Build XLSX with SheetJS ──
   const wb = XLSX.utils.book_new();
 
+  // ── One sheet per employee ──
   selectedEmails.forEach(email => {
     const member = USERS[emailKey(email)];
     if (!member) return;
     const att = ATT[emailKey(email)] || {};
-    const { weekDetails } = calcCompliance(att, fy, fm - 1);
+    const { weekDetails, totalOffice, totalRequired, weeksOnTrack, weeksTotal, pct } = calcCompliance(att, fy, fm - 1);
 
-    // Map weekKey -> met for quick lookup
-    const weekMet = {};
-    weekDetails.forEach(w => { weekMet[w.wk] = w.met; });
+    // ── Build aoa (array of arrays) ──
+    const aoa = [];
 
-    // Find Monday of each workday's week
-    function getMondayKey(date) {
-      const dow = date.getDay();
-      const mon = new Date(date);
-      mon.setDate(date.getDate() - (dow - 1));
-      return ds(mon);
-    }
+    // Title row
+    aoa.push([`${member.name} — Attendance Report: ${monthName} ${fy}`]);
+    aoa.push([]);
 
-    // Header row
+    // Daily status header
     const dateHeaders = workDays.map(d => d.toLocaleDateString('en-GB', { day:'2-digit', month:'short' }));
-    const headerRow = ['Employee', 'Email', ...dateHeaders, '', 'WFO Days', 'WFH Days', 'Leave Days', 'Holiday Days', 'Required WFO', 'Compliance %', 'Weeks On Track'];
+    aoa.push(['Date', ...dateHeaders]);
 
-    // Data row
-    const dailyCells = workDays.map(date => {
+    // Status row
+    const statusRow = ['Status', ...workDays.map(date => {
       const s = att[ds(date)] || '';
       return { office:'WFO', home:'WFH', leave:'Leave', holiday:'Holiday' }[s] || '—';
-    });
-    let office=0, home=0, leave=0, holiday=0;
-    workDays.forEach(date => {
-      const s = att[ds(date)];
-      if (s==='office') office++; else if (s==='home') home++;
-      else if (s==='leave') leave++; else if (s==='holiday') holiday++;
-    });
-    const { totalRequired, weeksOnTrack, weeksTotal, pct } = calcCompliance(att, fy, fm-1);
-    const dataRow = [member.name, member.email, ...dailyCells, '', office, home, leave, holiday, totalRequired, `${pct}%`, `${weeksOnTrack}/${weeksTotal}`];
+    })];
+    aoa.push(statusRow);
 
-    // Build worksheet data array
-    const wsData = [headerRow, dataRow];
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    aoa.push([]);
 
-    // ── Style header row ──
-    const range = XLSX.utils.decode_range(ws['!ref']);
-    for (let C = range.s.c; C <= range.e.c; C++) {
-      const cell = ws[XLSX.utils.encode_cell({ r:0, c:C })];
-      if (!cell) continue;
-      cell.s = {
-        fill: { fgColor: { rgb: '0F0E17' } },
-        font: { bold: true, color: { rgb: 'FFFCF5' } },
-        alignment: { horizontal: 'center' }
-      };
-    }
+    // Weekly compliance header
+    aoa.push(['Week (Mon)', 'WFO Days', 'WFH Days', 'Leave', 'Holiday', 'Required WFO', 'Compliance']);
 
-    // ── Style daily cells with status colors ──
-    const statusColors = { WFO:'FDF0EB', WFH:'EBF3FD', Leave:'F3EFFE', Holiday:'ECFDF5' };
-    const statusFont   = { WFO:'E05A2B', WFH:'2B7DE0', Leave:'8B5CF6', Holiday:'10B981' };
-    workDays.forEach((date, i) => {
-      const col = i + 2; // offset: col 0=name, 1=email, 2+ = dates
-      const cellAddr = XLSX.utils.encode_cell({ r:1, c:col });
-      const cell = ws[cellAddr];
-      if (!cell) return;
-      const val = cell.v;
-      if (statusColors[val]) {
-        cell.s = {
-          fill: { fgColor: { rgb: statusColors[val] } },
-          font: { color: { rgb: statusFont[val] }, bold: true },
-          alignment: { horizontal: 'center' }
-        };
-      } else {
-        cell.s = { alignment: { horizontal: 'center' } };
-      }
-
-      // ── Color entire column based on week compliance ──
-      const monKey = getMondayKey(date);
-      const met = weekMet[monKey];
-      if (met === true) {
-        cell.s.fill = { fgColor: { rgb: 'D1FAE5' } }; // green
-        cell.s.font = { color: { rgb: '065F46' }, bold: true };
-      } else if (met === false) {
-        cell.s.fill = { fgColor: { rgb: 'FEE2E2' } }; // red
-        cell.s.font = { color: { rgb: '991B1B' }, bold: true };
-      }
+    // Weekly rows
+    weekDetails.forEach(w => {
+      aoa.push([
+        w.wk,
+        w.office,
+        w.home || 0,
+        w.leave || 0,
+        w.holiday || 0,
+        w.req,
+        w.met ? 'Met ✓' : 'Not Met ✗'
+      ]);
     });
 
-    // ── Style summary columns ──
-    const summaryCols = [workDays.length+3, workDays.length+4, workDays.length+5, workDays.length+6, workDays.length+7, workDays.length+8, workDays.length+9];
-    summaryCols.forEach(c => {
-      const cell = ws[XLSX.utils.encode_cell({ r:1, c })];
-      if (cell) cell.s = { font: { bold: true }, alignment: { horizontal: 'center' } };
-    });
+    aoa.push([]);
 
-    // ── Compliance % cell color ──
-    const pctCell = ws[XLSX.utils.encode_cell({ r:1, c: workDays.length+8 })];
-    if (pctCell) {
-      pctCell.s = {
-        fill: { fgColor: { rgb: pct >= 100 ? 'D1FAE5' : pct >= 60 ? 'FEF3C7' : 'FEE2E2' } },
-        font: { bold: true, color: { rgb: pct >= 100 ? '065F46' : pct >= 60 ? '92400E' : '991B1B' } },
-        alignment: { horizontal: 'center' }
-      };
-    }
+    // Summary
+    aoa.push(['Summary']);
+    aoa.push(['Total WFO Days', totalOffice]);
+    aoa.push(['Required WFO Days', totalRequired]);
+    aoa.push(['Weeks On Track', `${weeksOnTrack}/${weeksTotal}`]);
+    aoa.push(['Compliance %', `${pct}%`]);
+
+    // ── Create worksheet ──
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
 
     // ── Column widths ──
-    ws['!cols'] = [
-      { wch: 20 }, { wch: 26 },
-      ...workDays.map(() => ({ wch: 7 })),
-      { wch: 2 },
-      { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 13 }, { wch: 14 }
-    ];
+    ws['!cols'] = [{ wch: 16 }, ...workDays.map(() => ({ wch: 7 }))];
+
+    // ── Cell styles ──
+    const range = XLSX.utils.decode_range(ws['!ref']);
+
+    // Helper to get/create cell
+    const getCell = (r, c) => {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      if (!ws[addr]) ws[addr] = { t:'s', v:'' };
+      return ws[addr];
+    };
+
+    // Title style
+    const titleCell = getCell(0, 0);
+    titleCell.s = { font: { bold: true, sz: 13 }, fill: { fgColor: { rgb: 'F2EDE4' } } };
+
+    // Header row for dates (row 2)
+    for (let c = 0; c <= workDays.length; c++) {
+      const cell = getCell(2, c);
+      cell.s = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '0F0E17' } }, alignment: { horizontal: 'center' } };
+    }
+
+    // Status row coloring (row 3)
+    workDays.forEach((date, i) => {
+      const s = att[ds(date)] || '';
+      const colors = { office: 'FDF0EB', home: 'EBF3FD', leave: 'F3EFFE', holiday: 'ECFDF5' };
+      const textColors = { office: 'E05A2B', home: '2B7DE0', leave: '8B5CF6', holiday: '10B981' };
+      if (s) {
+        const cell = getCell(3, i + 1);
+        cell.s = {
+          fill: { fgColor: { rgb: colors[s] } },
+          font: { color: { rgb: textColors[s] }, bold: true },
+          alignment: { horizontal: 'center' }
+        };
+      }
+    });
+
+    // Weekly compliance section
+    // Find the row where weekly data starts (row index = aoa.indexOf weekDetails start)
+    const weekHeaderRow = 6; // row index 6 (0-based): "Week (Mon)", ...
+    // Style weekly header
+    for (let c = 0; c < 7; c++) {
+      const cell = getCell(weekHeaderRow, c);
+      cell.s = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '0F0E17' } } };
+    }
+
+    // Style each week row
+    weekDetails.forEach((w, i) => {
+      const rowIdx = weekHeaderRow + 1 + i;
+      const bgColor = w.met ? 'D1FAE5' : 'FEE2E2'; // green : red
+      const textColor = w.met ? '065F46' : '991B1B';
+      for (let c = 0; c < 7; c++) {
+        const cell = getCell(rowIdx, c);
+        cell.s = { fill: { fgColor: { rgb: bgColor } }, font: { color: { rgb: textColor } } };
+      }
+      // Bold the compliance cell
+      const compCell = getCell(rowIdx, 6);
+      compCell.s = { fill: { fgColor: { rgb: bgColor } }, font: { bold: true, color: { rgb: textColor } } };
+    });
+
+    // Summary section header
+    const summaryRow = weekHeaderRow + 1 + weekDetails.length + 1;
+    const summaryCell = getCell(summaryRow, 0);
+    summaryCell.s = { font: { bold: true, sz: 12 }, fill: { fgColor: { rgb: 'F2EDE4' } } };
+
+    // Compliance % color
+    const pctRow = summaryRow + 4;
+    const pctCell = getCell(pctRow, 1);
+    pctCell.s = { font: { bold: true, color: { rgb: pct >= 100 ? '10B981' : pct >= 60 ? 'F59E0B' : 'E05A2B' } } };
 
     // Safe sheet name (max 31 chars)
-    const sheetName = member.name.slice(0, 28).replace(/[:\\\/\?\*\[\]]/g, '');
+    const sheetName = member.name.slice(0, 28).replace(/[:\\/?*\[\]]/g, '');
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   });
 
-  // ── Summary sheet (all employees) ──
-  if (selectedEmails.length > 1) {
-    const summaryData = [['Employee', 'Email', 'WFO Days', 'WFH Days', 'Leave Days', 'Holiday Days', 'Required WFO', 'Compliance %', 'Weeks On Track']];
-    selectedEmails.forEach(email => {
-      const member = USERS[emailKey(email)];
-      if (!member) return;
-      const att = ATT[emailKey(email)] || {};
-      let o=0,h=0,l=0,hol=0;
-      workDays.forEach(date => {
-        const s = att[ds(date)];
-        if(s==='office') o++; else if(s==='home') h++; else if(s==='leave') l++; else if(s==='holiday') hol++;
-      });
-      const { totalRequired, weeksOnTrack, weeksTotal, pct } = calcCompliance(att, fy, fm-1);
-      summaryData.push([member.name, member.email, o, h, l, hol, totalRequired, `${pct}%`, `${weeksOnTrack}/${weeksTotal}`]);
-    });
-    const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
-    // Style summary header
-    for (let C = 0; C <= 8; C++) {
-      const cell = summaryWs[XLSX.utils.encode_cell({ r:0, c:C })];
-      if (cell) cell.s = { fill:{ fgColor:{ rgb:'0F0E17' } }, font:{ bold:true, color:{ rgb:'FFFCF5' } }, alignment:{ horizontal:'center' } };
-    }
-    // Style compliance % per row
-    selectedEmails.forEach((email, i) => {
-      const { pct } = calcCompliance(ATT[emailKey(email)]||{}, fy, fm-1);
-      const cell = summaryWs[XLSX.utils.encode_cell({ r:i+1, c:7 })];
-      if (cell) cell.s = {
-        fill:{ fgColor:{ rgb: pct>=100?'D1FAE5':pct>=60?'FEF3C7':'FEE2E2' } },
-        font:{ bold:true, color:{ rgb: pct>=100?'065F46':pct>=60?'92400E':'991B1B' } },
-        alignment:{ horizontal:'center' }
-      };
-    });
-    summaryWs['!cols'] = [{ wch:20 },{ wch:26 },{ wch:10 },{ wch:10 },{ wch:10 },{ wch:12 },{ wch:14 },{ wch:13 },{ wch:14 }];
-    XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
-  }
-
   // ── Download ──
-  XLSX.writeFile(wb, `WorkSync_${monthName}_${fy}_Attendance.xlsx`);
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'base64', cellStyles: true });
+  const a = document.createElement('a');
+  a.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${wbout}`;
+  a.download = `WorkSync_${monthName}_${fy}_Attendance.xlsx`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
 
   btn.disabled = false; btn.textContent = '⬇ Download Excel';
   closeExportModal();
-  showToast(`Exported ${selectedEmails.length} employee${selectedEmails.length > 1 ? 's' : ''} for ${monthName} ${fy}`);
+  showToast(`Exported ${selectedEmails.length} employee${selectedEmails.length > 1 ? 's' : ''} — ${monthName} ${fy}`);
 }
 function populateMonthFilters(){
   const now=new Date(); let html='';

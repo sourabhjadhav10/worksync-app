@@ -738,22 +738,87 @@ function mkDay(num,other,weekend,key,status,isToday){
 // ═══════════════════════════════════════
 //  STATS
 // ═══════════════════════════════════════
-function renderStats() {
-  const att=getAtt(currentUser.email);
-  let office=0,home=0,leave=0,workdays=0;
-  for(let d=1;d<=new Date(calYear,calMonth+1,0).getDate();d++){
-    const date=new Date(calYear,calMonth,d);
-    if(date.getDay()===0||date.getDay()===6) continue;
-    workdays++;
-    const s=att[ds(date)];
-    if(s==='office') office++; else if(s==='home') home++; else if(s==='leave') leave++;
+function calcCompliance(att, year, month) {
+  // Build weeks: each week = Mon-Fri days in that ISO week within this month
+  const dim = new Date(year, month + 1, 0).getDate();
+  const weeks = {}; // weekKey -> { officeDays, nonOfficeDays (leave+holiday), totalWorkdays, requiredOffice }
+
+  for (let d = 1; d <= dim; d++) {
+    const date = new Date(year, month, d);
+    const dow = date.getDay();
+    if (dow === 0 || dow === 6) continue; // skip weekends
+
+    // Week key: year-weekNumber (Sun=start anchor)
+    const weekStart = new Date(date);
+    weekStart.setDate(date.getDate() - dow + 1); // Monday of that week
+    const wk = `${weekStart.getFullYear()}-${String(weekStart.getMonth()+1).padStart(2,'0')}-${String(weekStart.getDate()).padStart(2,'0')}`;
+
+    if (!weeks[wk]) weeks[wk] = { office:0, leave:0, holiday:0, workdays:0, required:0 };
+    weeks[wk].workdays++;
+
+    const s = att[ds(date)];
+    if (s === 'office')  weeks[wk].office++;
+    if (s === 'leave')   weeks[wk].leave++;
+    if (s === 'holiday') weeks[wk].holiday++;
   }
-  const req=Math.ceil(workdays/5)*2, pct=req>0?Math.min(100,Math.round((office/req)*100)):0;
+
+  // Per week: required office = max(0, 2 - leave - holiday)
+  // i.e. each leave/holiday day reduces the office requirement by 1, min 0
+  let totalRequired = 0, totalOffice = 0, weeksOnTrack = 0, weeksTotal = 0;
+  const weekDetails = [];
+
+  Object.entries(weeks).forEach(([wk, w]) => {
+    const req = Math.max(0, 2 - w.leave - w.holiday);
+    const met = w.office >= req;
+    totalRequired += req;
+    totalOffice   += w.office;
+    weeksTotal++;
+    if (met) weeksOnTrack++;
+    weekDetails.push({ wk, ...w, req, met });
+  });
+
+  const pct = totalRequired > 0 ? Math.min(100, Math.round((totalOffice / totalRequired) * 100)) : 100;
+  return { totalOffice, totalRequired, weeksOnTrack, weeksTotal, pct, weekDetails };
+}
+
+function renderStats() {
+  const att = getAtt(currentUser.email);
+  let home=0, leave=0, holiday=0, workdays=0;
+  const dim = new Date(calYear, calMonth+1, 0).getDate();
+  for (let d=1; d<=dim; d++) {
+    const date = new Date(calYear, calMonth, d);
+    if (date.getDay()===0||date.getDay()===6) continue;
+    workdays++;
+    const s = att[ds(date)];
+    if (s==='home')    home++;
+    if (s==='leave')   leave++;
+    if (s==='holiday') holiday++;
+  }
+
+  const { totalOffice, totalRequired, weeksOnTrack, weeksTotal, pct } = calcCompliance(att, calYear, calMonth);
+  const unlogged = workdays - totalOffice - home - leave - holiday;
+
   document.getElementById('stats-row').innerHTML=`
-    <div class="stat-card office"><div class="stat-label">Office Days</div><div class="stat-value">${office}</div><div class="stat-sub">Required: ${req}</div></div>
-    <div class="stat-card home"><div class="stat-label">Work From Home</div><div class="stat-value">${home}</div><div class="stat-sub">${workdays-office-home-leave} unlogged</div></div>
-    <div class="stat-card leave"><div class="stat-label">On Leave</div><div class="stat-value">${leave}</div><div class="stat-sub">This month</div></div>
-    <div class="stat-card compliance"><div class="stat-label">Compliance</div><div class="stat-value">${pct}%</div><div class="stat-sub">${pct>=100?'✅ On track':`${req-office} more days needed`}</div></div>`;
+    <div class="stat-card office">
+      <div class="stat-label">Office Days</div>
+      <div class="stat-value">${totalOffice}</div>
+      <div class="stat-sub">Required: ${totalRequired} (2/week adjusted)</div>
+    </div>
+    <div class="stat-card home">
+      <div class="stat-label">Work From Home</div>
+      <div class="stat-value">${home}</div>
+      <div class="stat-sub">${unlogged} day${unlogged!==1?'s':''} unlogged</div>
+    </div>
+    <div class="stat-card leave">
+      <div class="stat-label">Leave / Holiday</div>
+      <div class="stat-value">${leave + holiday}</div>
+      <div class="stat-sub">Reduces weekly requirement</div>
+    </div>
+    <div class="stat-card compliance">
+      <div class="stat-label">Compliance</div>
+      <div class="stat-value">${pct}%</div>
+      <div class="stat-sub">${weeksOnTrack}/${weeksTotal} weeks on track ${pct>=100?'✅':pct>=60?'⚠️':'🔴'}</div>
+    </div>`;
 }
 
 // ═══════════════════════════════════════

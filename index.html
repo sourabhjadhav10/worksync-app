@@ -487,6 +487,25 @@ async function seedDemoUsers() {
     const usersSnap = await fbGet('users');
     USERS = usersSnap || {};
     await seedDemoUsers();
+
+    // ── Auto-restore session ──
+    const savedEmail = sessionStorage.getItem('ws_session');
+    if (savedEmail) {
+      document.getElementById('loading-msg').textContent = 'Restoring your session…';
+      const ek = emailKey(savedEmail);
+      const user = await fbGet(`users/${ek}`);
+      if (user) {
+        const att = await fbGet(`attendance/${ek}`);
+        ATT[ek] = att || {};
+        currentUser = user;
+        document.getElementById('loading-screen').style.display = 'none';
+        initApp();
+        return;
+      } else {
+        sessionStorage.removeItem('ws_session');
+      }
+    }
+
     document.getElementById('loading-screen').style.display = 'none';
     document.getElementById('auth-screen').style.display = 'flex';
     populateRegManagerDropdown();
@@ -542,6 +561,7 @@ async function login() {
     const att = await fbGet(`attendance/${ek}`);
     ATT[ek] = att || {};
     currentUser = user;
+    sessionStorage.setItem('ws_session', email); // Save session
     btn.disabled=false; btn.textContent='Sign In →';
     initApp();
   } catch(e) {
@@ -570,6 +590,7 @@ async function register() {
     USERS[ek] = newUser;
     ATT[ek] = {};
     currentUser = newUser;
+    sessionStorage.setItem('ws_session', email); // Save session
     btn.disabled=false; btn.textContent='Create Account →';
     initApp();
   } catch(e) {
@@ -583,6 +604,7 @@ function logout() {
   Object.values(teamListeners).forEach(ref => ref.off());
   teamListeners = {};
   currentUser = null; ATT = {};
+  sessionStorage.removeItem('ws_session'); // Clear session on logout
   document.getElementById('app-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('login-email').value = '';

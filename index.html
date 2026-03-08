@@ -98,11 +98,11 @@
   .cal-nav button{width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s;color:var(--ink);}
   .cal-nav button:hover{background:var(--warm-mid);}
   .cal-today-btn{padding:6px 14px!important;width:auto!important;font-size:12px!important;font-family:'DM Sans',sans-serif;font-weight:500;}
-  .cal-grid{padding:16px 20px 20px;}
-  .cal-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px;}
-  .cal-weekday{text-align:center;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);padding:8px 0;}
-  .cal-days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
-  .cal-day{aspect-ratio:1;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;min-height:52px;border:1.5px solid transparent;font-size:14px;font-weight:500;}
+  .cal-grid{padding:8px 8px 12px;}
+  .cal-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px;}
+  .cal-weekday{text-align:center;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text-muted);padding:6px 0;}
+  .cal-days{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+  .cal-day{border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;min-height:44px;border:1.5px solid transparent;font-size:13px;font-weight:500;width:100%;}
   .cal-day:hover:not(.other-month):not(.weekend){border-color:var(--border);background:var(--warm-mid);}
   .cal-day.other-month{opacity:.25;cursor:default;}
   .cal-day.weekend{opacity:.4;cursor:default;}
@@ -111,11 +111,22 @@
   .cal-day.status-home{background:var(--home-bg);border-color:rgba(43,125,224,.3);}
   .cal-day.status-leave{background:var(--leave-bg);border-color:rgba(139,92,246,.3);}
   .cal-day.status-holiday{background:var(--holiday-bg);border-color:rgba(16,185,129,.3);}
-  .day-status-icon{font-size:14px;margin-top:3px;line-height:1;}
-  .cal-day.status-office .day-num,.cal-day.status-home .day-num,.cal-day.status-leave .day-num,.cal-day.status-holiday .day-num{font-size:11px;color:var(--text-muted);}
-  .legend{display:flex;gap:20px;padding:14px 24px;border-top:1px solid var(--border);flex-wrap:wrap;}
-  .legend-item{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-muted);font-weight:500;}
-  .legend-dot{width:10px;height:10px;border-radius:3px;}
+  .day-status-icon{font-size:12px;margin-top:2px;line-height:1;}
+  .cal-day.status-office .day-num,.cal-day.status-home .day-num,.cal-day.status-leave .day-num,.cal-day.status-holiday .day-num{font-size:10px;color:var(--text-muted);}
+  .legend{display:flex;gap:12px;padding:10px 16px;border-top:1px solid var(--border);flex-wrap:wrap;}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);font-weight:500;}
+  .legend-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0;}
+  @media(max-width:480px){
+    .cal-grid{padding:6px 4px 10px;}
+    .cal-weekday{font-size:9px;padding:4px 0;letter-spacing:0;}
+    .cal-day{min-height:36px;font-size:12px;border-radius:6px;}
+    .day-status-icon{font-size:10px;}
+    .cal-header{padding:14px 12px;}
+    .cal-title{font-size:16px;}
+    .stats-row{grid-template-columns:repeat(2,1fr);gap:10px;}
+    .legend{gap:8px;padding:8px 12px;}
+    .legend-item{font-size:10px;}
+  }
 
   /* MODALS */
   .modal-overlay{position:fixed;inset:0;background:rgba(15,14,23,.6);backdrop-filter:blur(4px);z-index:1000;display:none;align-items:center;justify-content:center;}
@@ -432,7 +443,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v31</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v33</div>
 
 <script>
 // ═══════════════════════════════════════
@@ -708,7 +719,8 @@ function calcCompliance(att,year,month) {
     if(met) weeksOnTrack++;
     weekDetails.push({wk,...w});
   });
-  const pct=totalRequired>0?Math.min(100,Math.round((totalOffice/totalRequired)*100)):100;
+  // Compliance % = weeks on track / total weeks (not office days ratio)
+  const pct=weeksTotal>0?Math.round((weeksOnTrack/weeksTotal)*100):100;
   return {totalOffice,totalRequired,weeksOnTrack,weeksTotal,pct,weekDetails};
 }
 

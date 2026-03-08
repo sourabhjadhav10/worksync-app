@@ -418,7 +418,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: vr30</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v30new</div>
 
 <script>
 // ═══════════════════════════════════════
@@ -1181,7 +1181,6 @@ async function doExport() {
   const btn = document.querySelector('#export-modal .btn-save');
   btn.disabled = true; btn.textContent = 'Preparing…';
 
-  // Fetch attendance
   for (const email of selectedEmails) {
     const ek = emailKey(email);
     if (!ATT[ek]) { const att = await fbGet(`attendance/${ek}`); ATT[ek] = att || {}; }
@@ -1195,144 +1194,113 @@ async function doExport() {
     if (date.getDay() !== 0 && date.getDay() !== 6) workDays.push(date);
   }
 
-  const wb = XLSX.utils.book_new();
+  // ── Build one CSV per employee, merge into multi-sheet HTML table trick ──
+  // We use an HTML table exported as .xls (true color support via inline styles)
+  let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
+  html += '<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>';
 
-  // ── One sheet per employee ──
-  selectedEmails.forEach(email => {
+  selectedEmails.forEach((email, idx) => {
+    const member = USERS[emailKey(email)];
+    if (!member) return;
+    html += `<x:ExcelWorksheet><x:Name>${member.name.slice(0,28).replace(/[&<>]/g,'')}</x:Name><x:WorksheetOptions><x:Selected/></x:WorksheetOptions></x:ExcelWorksheet>`;
+  });
+
+  html += '</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>';
+
+  const statusColors = {
+    office:  { bg:'#FDF0EB', color:'#E05A2B', label:'WFO' },
+    home:    { bg:'#EBF3FD', color:'#2B7DE0', label:'WFH' },
+    leave:   { bg:'#F3EFFE', color:'#8B5CF6', label:'Leave' },
+    holiday: { bg:'#ECFDF5', color:'#10B981', label:'Holiday' },
+  };
+
+  selectedEmails.forEach((email, idx) => {
     const member = USERS[emailKey(email)];
     if (!member) return;
     const att = ATT[emailKey(email)] || {};
     const { weekDetails, totalOffice, totalRequired, weeksOnTrack, weeksTotal, pct } = calcCompliance(att, fy, fm - 1);
 
-    // ── Build aoa (array of arrays) ──
-    const aoa = [];
+    const sheetName = member.name.slice(0,28).replace(/[&<>]/g,'');
+    html += `<table x:Name="${sheetName}" style="border-collapse:collapse;font-family:Arial;font-size:11px">`;
 
-    // Title row
-    aoa.push([`${member.name} — Attendance Report: ${monthName} ${fy}`]);
-    aoa.push([]);
+    // Title
+    html += `<tr><td colspan="${workDays.length + 1}" style="background:#0F0E17;color:#FFFCF5;font-size:13px;font-weight:bold;padding:8px 12px">${member.name} — Attendance: ${monthName} ${fy}</td></tr>`;
+    html += `<tr><td colspan="${workDays.length + 1}"></td></tr>`;
 
-    // Daily status header
-    const dateHeaders = workDays.map(d => d.toLocaleDateString('en-GB', { day:'2-digit', month:'short' }));
-    aoa.push(['Date', ...dateHeaders]);
+    // Date headers
+    html += `<tr><td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;padding:6px 8px;border:1px solid #333">Status</td>`;
+    workDays.forEach(d => {
+      html += `<td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 4px;border:1px solid #333">${d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}</td>`;
+    });
+    html += '</tr>';
 
     // Status row
-    const statusRow = ['Status', ...workDays.map(date => {
+    html += `<tr><td style="font-weight:bold;padding:6px 8px;border:1px solid #ddd">Status</td>`;
+    workDays.forEach(date => {
       const s = att[ds(date)] || '';
-      return { office:'WFO', home:'WFH', leave:'Leave', holiday:'Holiday' }[s] || '—';
-    })];
-    aoa.push(statusRow);
+      const sc = statusColors[s];
+      if (sc) {
+        html += `<td style="background:${sc.bg};color:${sc.color};font-weight:bold;text-align:center;padding:6px 4px;border:1px solid #ddd">${sc.label}</td>`;
+      } else {
+        html += `<td style="text-align:center;padding:6px 4px;border:1px solid #ddd;color:#999">—</td>`;
+      }
+    });
+    html += '</tr>';
 
-    aoa.push([]);
+    // Spacer
+    html += `<tr><td colspan="${workDays.length + 1}" style="padding:4px"></td></tr>`;
 
     // Weekly compliance header
-    aoa.push(['Week (Mon)', 'WFO Days', 'WFH Days', 'Leave', 'Holiday', 'Required WFO', 'Compliance']);
+    html += `<tr>
+      <td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;padding:6px 8px;border:1px solid #333">Week Starting</td>
+      <td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">WFO Days</td>
+      <td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">WFH Days</td>
+      <td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">Leave</td>
+      <td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">Holiday</td>
+      <td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">Required WFO</td>
+      <td style="background:#0F0E17;color:#FFFCF5;font-weight:bold;text-align:center;padding:6px 8px;border:1px solid #333">Compliance</td>
+    </tr>`;
 
-    // Weekly rows
+    // Weekly rows — GREEN or RED background
     weekDetails.forEach(w => {
-      aoa.push([
-        w.wk,
-        w.office,
-        w.home || 0,
-        w.leave || 0,
-        w.holiday || 0,
-        w.req,
-        w.met ? 'Met ✓' : 'Not Met ✗'
-      ]);
+      const bg   = w.met ? '#D1FAE5' : '#FEE2E2';
+      const fg   = w.met ? '#065F46' : '#991B1B';
+      const mark = w.met ? 'Met ✓'  : 'Not Met ✗';
+      html += `<tr style="background:${bg};color:${fg}">
+        <td style="padding:6px 8px;border:1px solid #ccc;font-weight:500">${w.wk}</td>
+        <td style="text-align:center;padding:6px 8px;border:1px solid #ccc">${w.office}</td>
+        <td style="text-align:center;padding:6px 8px;border:1px solid #ccc">${w.home||0}</td>
+        <td style="text-align:center;padding:6px 8px;border:1px solid #ccc">${w.leave||0}</td>
+        <td style="text-align:center;padding:6px 8px;border:1px solid #ccc">${w.holiday||0}</td>
+        <td style="text-align:center;padding:6px 8px;border:1px solid #ccc">${w.req}</td>
+        <td style="text-align:center;padding:6px 8px;border:1px solid #ccc;font-weight:bold">${mark}</td>
+      </tr>`;
     });
 
-    aoa.push([]);
+    // Spacer
+    html += `<tr><td colspan="7" style="padding:4px"></td></tr>`;
 
     // Summary
-    aoa.push(['Summary']);
-    aoa.push(['Total WFO Days', totalOffice]);
-    aoa.push(['Required WFO Days', totalRequired]);
-    aoa.push(['Weeks On Track', `${weeksOnTrack}/${weeksTotal}`]);
-    aoa.push(['Compliance %', `${pct}%`]);
+    html += `<tr><td colspan="7" style="background:#F2EDE4;font-weight:bold;font-size:12px;padding:6px 8px;border:1px solid #ddd">Summary</td></tr>`;
+    html += `<tr><td style="padding:5px 8px;border:1px solid #eee">Total WFO Days</td><td style="font-weight:bold;text-align:center;border:1px solid #eee">${totalOffice}</td></tr>`;
+    html += `<tr><td style="padding:5px 8px;border:1px solid #eee">Required WFO Days</td><td style="font-weight:bold;text-align:center;border:1px solid #eee">${totalRequired}</td></tr>`;
+    html += `<tr><td style="padding:5px 8px;border:1px solid #eee">Weeks On Track</td><td style="font-weight:bold;text-align:center;border:1px solid #eee">${weeksOnTrack}/${weeksTotal}</td></tr>`;
+    const pctColor = pct >= 100 ? '#065F46' : pct >= 60 ? '#92400E' : '#991B1B';
+    const pctBg    = pct >= 100 ? '#D1FAE5' : pct >= 60 ? '#FEF3C7' : '#FEE2E2';
+    html += `<tr><td style="padding:5px 8px;border:1px solid #eee">Compliance %</td><td style="font-weight:bold;text-align:center;background:${pctBg};color:${pctColor};border:1px solid #eee">${pct}%</td></tr>`;
 
-    // ── Create worksheet ──
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-    // ── Column widths ──
-    ws['!cols'] = [{ wch: 16 }, ...workDays.map(() => ({ wch: 7 }))];
-
-    // ── Cell styles ──
-    const range = XLSX.utils.decode_range(ws['!ref']);
-
-    // Helper to get/create cell
-    const getCell = (r, c) => {
-      const addr = XLSX.utils.encode_cell({ r, c });
-      if (!ws[addr]) ws[addr] = { t:'s', v:'' };
-      return ws[addr];
-    };
-
-    // Title style
-    const titleCell = getCell(0, 0);
-    titleCell.s = { font: { bold: true, sz: 13 }, fill: { fgColor: { rgb: 'F2EDE4' } } };
-
-    // Header row for dates (row 2)
-    for (let c = 0; c <= workDays.length; c++) {
-      const cell = getCell(2, c);
-      cell.s = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '0F0E17' } }, alignment: { horizontal: 'center' } };
-    }
-
-    // Status row coloring (row 3)
-    workDays.forEach((date, i) => {
-      const s = att[ds(date)] || '';
-      const colors = { office: 'FDF0EB', home: 'EBF3FD', leave: 'F3EFFE', holiday: 'ECFDF5' };
-      const textColors = { office: 'E05A2B', home: '2B7DE0', leave: '8B5CF6', holiday: '10B981' };
-      if (s) {
-        const cell = getCell(3, i + 1);
-        cell.s = {
-          fill: { fgColor: { rgb: colors[s] } },
-          font: { color: { rgb: textColors[s] }, bold: true },
-          alignment: { horizontal: 'center' }
-        };
-      }
-    });
-
-    // Weekly compliance section
-    // Find the row where weekly data starts (row index = aoa.indexOf weekDetails start)
-    const weekHeaderRow = 6; // row index 6 (0-based): "Week (Mon)", ...
-    // Style weekly header
-    for (let c = 0; c < 7; c++) {
-      const cell = getCell(weekHeaderRow, c);
-      cell.s = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '0F0E17' } } };
-    }
-
-    // Style each week row
-    weekDetails.forEach((w, i) => {
-      const rowIdx = weekHeaderRow + 1 + i;
-      const bgColor = w.met ? 'D1FAE5' : 'FEE2E2'; // green : red
-      const textColor = w.met ? '065F46' : '991B1B';
-      for (let c = 0; c < 7; c++) {
-        const cell = getCell(rowIdx, c);
-        cell.s = { fill: { fgColor: { rgb: bgColor } }, font: { color: { rgb: textColor } } };
-      }
-      // Bold the compliance cell
-      const compCell = getCell(rowIdx, 6);
-      compCell.s = { fill: { fgColor: { rgb: bgColor } }, font: { bold: true, color: { rgb: textColor } } };
-    });
-
-    // Summary section header
-    const summaryRow = weekHeaderRow + 1 + weekDetails.length + 1;
-    const summaryCell = getCell(summaryRow, 0);
-    summaryCell.s = { font: { bold: true, sz: 12 }, fill: { fgColor: { rgb: 'F2EDE4' } } };
-
-    // Compliance % color
-    const pctRow = summaryRow + 4;
-    const pctCell = getCell(pctRow, 1);
-    pctCell.s = { font: { bold: true, color: { rgb: pct >= 100 ? '10B981' : pct >= 60 ? 'F59E0B' : 'E05A2B' } } };
-
-    // Safe sheet name (max 31 chars)
-    const sheetName = member.name.slice(0, 28).replace(/[:\\/?*\[\]]/g, '');
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    html += '</table>';
+    // Sheet break
+    if (idx < selectedEmails.length - 1) html += '<br clear="all" style="mso-special-character:line-break;page-break-before:always">';
   });
 
-  // ── Download ──
-  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'base64', cellStyles: true });
+  html += '</body></html>';
+
+  // Download as .xls (Excel-compatible HTML)
+  const base64 = btoa(unescape(encodeURIComponent(html)));
   const a = document.createElement('a');
-  a.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${wbout}`;
-  a.download = `WorkSync_${monthName}_${fy}_Attendance.xlsx`;
+  a.href = `data:application/vnd.ms-excel;base64,${base64}`;
+  a.download = `WorkSync_${monthName}_${fy}_Attendance.xls`;
   document.body.appendChild(a); a.click();
   document.body.removeChild(a);
 

@@ -1,1 +1,1021 @@
-test
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WorkSync</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+  :root {
+    --ink:#0f0e17;--paper:#fffcf5;--warm-mid:#f2ede4;
+    --office:#e05a2b;--home:#2b7de0;--leave:#8b5cf6;--holiday:#10b981;--admin:#f59e0b;
+    --office-bg:#fdf0eb;--home-bg:#ebf3fd;--leave-bg:#f3effe;--holiday-bg:#ecfdf5;
+    --surface:#ffffff;--border:#e8e3d8;--text-muted:#8b8578;
+    --radius:12px;--shadow-lg:0 8px 40px rgba(15,14,23,.14);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);min-height:100vh;font-size:15px;}
+
+  /* LOADING */
+  #loading-screen{position:fixed;inset:0;background:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;}
+  .loading-logo{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--paper);margin-bottom:16px;}
+  .loading-logo span{color:var(--office);}
+  .spinner{width:36px;height:36px;border:3px solid rgba(255,252,245,.15);border-top-color:var(--office);border-radius:50%;animation:spin .7s linear infinite;}
+  .loading-msg{color:rgba(255,252,245,.4);font-size:13px;margin-top:14px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* AUTH */
+  #auth-screen{min-height:100vh;display:none;align-items:center;justify-content:center;background:var(--ink);position:relative;overflow:hidden;}
+  #auth-screen::before{content:'';position:absolute;width:600px;height:600px;background:radial-gradient(circle,rgba(224,90,43,.18) 0%,transparent 70%);top:-100px;right:-100px;border-radius:50%;}
+  #auth-screen::after{content:'';position:absolute;width:400px;height:400px;background:radial-gradient(circle,rgba(43,125,224,.15) 0%,transparent 70%);bottom:-80px;left:-80px;border-radius:50%;}
+  .auth-card{background:rgba(255,252,245,.04);border:1px solid rgba(255,252,245,.1);backdrop-filter:blur(20px);border-radius:20px;padding:48px;width:420px;position:relative;z-index:1;}
+  .auth-logo{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--paper);margin-bottom:8px;}
+  .auth-logo span{color:var(--office);}
+  .auth-tagline{color:rgba(255,252,245,.4);font-size:13px;margin-bottom:36px;}
+  .auth-tabs{display:flex;margin-bottom:28px;background:rgba(255,252,245,.06);border-radius:10px;padding:4px;}
+  .auth-tab{flex:1;padding:8px;text-align:center;border-radius:7px;cursor:pointer;font-size:13px;font-weight:500;color:rgba(255,252,245,.45);transition:all .2s;border:none;background:none;}
+  .auth-tab.active{background:var(--office);color:white;}
+  .form-group{margin-bottom:16px;}
+  .form-label{display:block;font-size:11px;font-weight:600;color:rgba(255,252,245,.45);margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase;}
+  .form-input{width:100%;padding:12px 14px;background:rgba(255,252,245,.06);border:1px solid rgba(255,252,245,.1);border-radius:8px;color:var(--paper);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color .2s;}
+  .form-input:focus{border-color:var(--office);}
+  .form-input option{background:#1a1924;color:var(--paper);}
+  .btn-primary{width:100%;padding:13px;background:var(--office);color:white;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:opacity .2s,transform .1s;margin-top:8px;}
+  .btn-primary:hover{opacity:.88;transform:translateY(-1px);}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+  .auth-msg{margin-top:14px;font-size:11px;color:rgba(255,252,245,.3);text-align:center;line-height:1.7;}
+  .auth-error{background:rgba(224,90,43,.15);border:1px solid rgba(224,90,43,.3);color:#f4a07a;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none;}
+
+  /* APP */
+  #app-screen{display:none;min-height:100vh;flex-direction:column;}
+  header{background:var(--ink);padding:0 28px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+  .header-logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--paper);}
+  .header-logo span{color:var(--office);}
+  .header-right{display:flex;align-items:center;gap:16px;}
+  .user-chip{display:flex;align-items:center;gap:8px;background:rgba(255,252,245,.07);padding:6px 12px 6px 6px;border-radius:30px;cursor:pointer;}
+  .avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:11px;font-weight:700;color:white;flex-shrink:0;}
+  .user-name{font-size:13px;font-weight:500;color:rgba(255,252,245,.85);}
+  .role-badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;letter-spacing:.5px;text-transform:uppercase;}
+  .role-badge.manager{background:rgba(224,90,43,.2);color:#f4a07a;}
+  .role-badge.employee{background:rgba(43,125,224,.2);color:#7ab0f4;}
+  .role-badge.admin{background:rgba(245,158,11,.2);color:#fcd34d;}
+  .btn-logout{background:none;border:1px solid rgba(255,252,245,.12);color:rgba(255,252,245,.5);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;transition:all .2s;}
+  .btn-logout:hover{border-color:rgba(255,252,245,.3);color:var(--paper);}
+
+  /* SYNC */
+  .sync-bar{display:flex;align-items:center;font-size:11px;color:rgba(255,252,245,.4);gap:6px;}
+  .sync-dot{width:7px;height:7px;border-radius:50%;background:#10b981;}
+  .sync-dot.syncing{background:#f59e0b;animation:pulse .8s ease-in-out infinite;}
+  .sync-dot.error{background:#ef4444;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  /* NAV */
+  .nav-tabs{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;display:flex;}
+  .nav-tab{padding:14px 20px;font-size:14px;font-weight:500;color:var(--text-muted);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:7px;}
+  .nav-tab:hover{color:var(--ink);}
+  .nav-tab.active{color:var(--office);border-bottom-color:var(--office);font-weight:600;}
+
+  main{flex:1;padding:28px;max-width:1200px;width:100%;margin:0 auto;}
+
+  /* STATS */
+  .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;position:relative;overflow:hidden;}
+  .stat-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;}
+  .stat-card.office::before{background:var(--office);}
+  .stat-card.home::before{background:var(--home);}
+  .stat-card.leave::before{background:var(--leave);}
+  .stat-card.compliance::before{background:var(--holiday);}
+  .stat-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);margin-bottom:6px;}
+  .stat-value{font-family:'Syne',sans-serif;font-size:28px;font-weight:700;line-height:1;}
+  .stat-card.office .stat-value{color:var(--office);}
+  .stat-card.home .stat-value{color:var(--home);}
+  .stat-card.leave .stat-value{color:var(--leave);}
+  .stat-card.compliance .stat-value{color:var(--holiday);}
+  .stat-sub{font-size:12px;color:var(--text-muted);margin-top:4px;}
+
+  /* CALENDAR */
+  .calendar-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+  .cal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border);}
+  .cal-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;}
+  .cal-nav{display:flex;gap:8px;align-items:center;}
+  .cal-nav button{width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s;color:var(--ink);}
+  .cal-nav button:hover{background:var(--warm-mid);}
+  .cal-today-btn{padding:6px 14px!important;width:auto!important;font-size:12px!important;font-family:'DM Sans',sans-serif;font-weight:500;}
+  .cal-grid{padding:16px 20px 20px;}
+  .cal-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px;}
+  .cal-weekday{text-align:center;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);padding:8px 0;}
+  .cal-days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+  .cal-day{aspect-ratio:1;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;min-height:52px;border:1.5px solid transparent;font-size:14px;font-weight:500;}
+  .cal-day:hover:not(.other-month):not(.weekend){border-color:var(--border);background:var(--warm-mid);}
+  .cal-day.other-month{opacity:.25;cursor:default;}
+  .cal-day.weekend{opacity:.4;cursor:default;}
+  .cal-day.today{border-color:var(--ink)!important;font-weight:700;}
+  .cal-day.status-office{background:var(--office-bg);border-color:rgba(224,90,43,.3);}
+  .cal-day.status-home{background:var(--home-bg);border-color:rgba(43,125,224,.3);}
+  .cal-day.status-leave{background:var(--leave-bg);border-color:rgba(139,92,246,.3);}
+  .cal-day.status-holiday{background:var(--holiday-bg);border-color:rgba(16,185,129,.3);}
+  .day-dot{width:6px;height:6px;border-radius:50%;margin-top:4px;}
+  .status-office .day-dot{background:var(--office);}
+  .status-home .day-dot{background:var(--home);}
+  .status-leave .day-dot{background:var(--leave);}
+  .status-holiday .day-dot{background:var(--holiday);}
+  .legend{display:flex;gap:20px;padding:14px 24px;border-top:1px solid var(--border);flex-wrap:wrap;}
+  .legend-item{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-muted);font-weight:500;}
+  .legend-dot{width:10px;height:10px;border-radius:3px;}
+
+  /* MODALS */
+  .modal-overlay{position:fixed;inset:0;background:rgba(15,14,23,.6);backdrop-filter:blur(4px);z-index:1000;display:none;align-items:center;justify-content:center;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--surface);border-radius:16px;padding:28px;width:380px;box-shadow:var(--shadow-lg);animation:modalIn .2s ease;}
+  @keyframes modalIn{from{opacity:0;transform:scale(.96) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+  .modal-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:20px;}
+  .status-options{display:flex;flex-direction:column;gap:10px;margin-bottom:20px;}
+  .status-option{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;border:1.5px solid var(--border);cursor:pointer;transition:all .15s;font-size:14px;font-weight:500;}
+  .status-option:hover{border-color:#aaa;}
+  .status-option.selected-office{background:var(--office-bg);border-color:var(--office);color:var(--office);}
+  .status-option.selected-home{background:var(--home-bg);border-color:var(--home);color:var(--home);}
+  .status-option.selected-leave{background:var(--leave-bg);border-color:var(--leave);color:var(--leave);}
+  .status-option.selected-holiday{background:var(--holiday-bg);border-color:var(--holiday);color:var(--holiday);}
+  .modal-actions{display:flex;gap:10px;}
+  .btn-save{flex:1;padding:11px;background:var(--office);color:white;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .2s;}
+  .btn-save:hover{opacity:.85;}
+  .btn-save:disabled{opacity:.5;cursor:not-allowed;}
+  .btn-cancel{padding:11px 16px;background:var(--warm-mid);color:var(--text-muted);border:none;border-radius:8px;font-size:14px;cursor:pointer;}
+  .btn-clear{padding:11px 16px;background:none;color:#e05a2b;border:1px solid rgba(224,90,43,.3);border-radius:8px;font-size:14px;cursor:pointer;}
+
+  /* PROFILE */
+  .profile-modal{width:440px;}
+  .profile-section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:10px;margin-top:20px;}
+  .profile-field{margin-bottom:14px;}
+  .profile-label{font-size:12px;color:var(--text-muted);margin-bottom:5px;font-weight:500;}
+  .profile-input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;background:var(--paper);color:var(--ink);}
+  .profile-input:focus{border-color:var(--office);}
+  .profile-input[readonly]{background:var(--warm-mid);color:var(--text-muted);cursor:not-allowed;}
+  .profile-select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;background:var(--paper);color:var(--ink);cursor:pointer;}
+  .profile-select:focus{border-color:var(--office);}
+  .current-manager-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--office-bg);border:1px solid rgba(224,90,43,.2);border-radius:8px;font-size:13px;font-weight:500;color:var(--office);margin-bottom:10px;}
+
+  /* TABLES */
+  .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+  .section-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;}
+  .filter-row{display:flex;gap:12px;margin-bottom:20px;align-items:center;flex-wrap:wrap;}
+  .filter-select{padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--ink);cursor:pointer;outline:none;}
+  .team-table{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+  table{width:100%;border-collapse:collapse;}
+  thead{background:var(--warm-mid);}
+  th{padding:12px 16px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);}
+  td{padding:14px 16px;font-size:14px;border-top:1px solid var(--border);vertical-align:middle;}
+  tbody tr:hover{background:var(--warm-mid);}
+  .member-info{display:flex;align-items:center;gap:10px;}
+  .status-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500;}
+  .pill-office{background:var(--office-bg);color:var(--office);}
+  .pill-home{background:var(--home-bg);color:var(--home);}
+  .pill-leave{background:var(--leave-bg);color:var(--leave);}
+  .pill-holiday{background:var(--holiday-bg);color:var(--holiday);}
+  .pill-none{background:var(--warm-mid);color:var(--text-muted);}
+  .pill-manager{background:rgba(224,90,43,.12);color:var(--office);}
+  .pill-employee{background:rgba(43,125,224,.12);color:var(--home);}
+  .compliance-bar{display:flex;align-items:center;gap:8px;}
+  .bar-track{flex:1;height:6px;background:var(--warm-mid);border-radius:99px;overflow:hidden;max-width:80px;}
+  .bar-fill{height:100%;border-radius:99px;}
+  .bar-good{background:var(--holiday);}
+  .bar-warn{background:#f59e0b;}
+  .bar-bad{background:var(--office);}
+
+  /* ADMIN */
+  .admin-banner{background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(224,90,43,.08));border:1px solid rgba(245,158,11,.25);border-radius:var(--radius);padding:16px 20px;margin-bottom:24px;display:flex;align-items:center;gap:12px;}
+  .admin-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px;}
+  .admin-stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;text-align:center;}
+  .admin-stat-value{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;}
+  .admin-stat-label{font-size:12px;color:var(--text-muted);margin-top:4px;font-weight:500;}
+  .search-bar{padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;background:var(--surface);width:240px;}
+  .search-bar:focus{border-color:var(--office);}
+
+  /* REPORTS */
+  .report-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;}
+  .report-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
+  .report-card-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;margin-bottom:16px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;}
+  .donut-wrap{display:flex;align-items:center;gap:20px;}
+  .donut-legend{display:flex;flex-direction:column;gap:8px;}
+  .donut-item{display:flex;align-items:center;gap:8px;font-size:13px;}
+  .donut-swatch{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+  .donut-count{font-weight:600;margin-left:auto;padding-left:8px;}
+  .week-list{display:flex;flex-direction:column;gap:6px;}
+  .week-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--warm-mid);border-radius:8px;font-size:13px;}
+  .week-badges{display:flex;gap:6px;}
+
+  /* TOAST */
+  .toast{position:fixed;bottom:24px;right:24px;background:var(--ink);color:var(--paper);padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;transform:translateY(80px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);}
+  .toast.show{transform:translateY(0);opacity:1;}
+  .hidden{display:none!important;}
+
+  @media(max-width:768px){main{padding:16px;}.stats-row,.admin-stats{grid-template-columns:repeat(2,1fr);}.report-grid{grid-template-columns:1fr;}header{padding:0 16px;}.nav-tabs{padding:0 16px;overflow-x:auto;}}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-screen">
+  <div class="loading-logo">Work<span>Sync</span></div>
+  <div class="spinner"></div>
+  <div class="loading-msg" id="loading-msg">Connecting to Firebase…</div>
+</div>
+
+<!-- AUTH -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">Work<span>Sync</span></div>
+    <div class="auth-tagline">Hybrid Work Tracking · Powered by Firebase</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchAuthTab('login')">Sign In</button>
+      <button class="auth-tab" onclick="switchAuthTab('register')">Register</button>
+    </div>
+    <div id="auth-error" class="auth-error"></div>
+    <div id="login-form">
+      <div class="form-group"><label class="form-label">Email</label><input type="email" id="login-email" class="form-input" placeholder="you@company.com"></div>
+      <div class="form-group"><label class="form-label">Password</label><input type="password" id="login-password" class="form-input" placeholder="••••••••"></div>
+      <button class="btn-primary" id="login-btn" onclick="login()">Sign In →</button>
+      <p class="auth-msg">👑 Admin: admin@worksync.com / admin123<br>👔 Manager: alice@co.com / pass123<br>👤 Employee: bob@co.com / pass123</p>
+    </div>
+    <div id="register-form" class="hidden">
+      <div class="form-group"><label class="form-label">Full Name</label><input type="text" id="reg-name" class="form-input" placeholder="Jane Smith"></div>
+      <div class="form-group"><label class="form-label">Email</label><input type="email" id="reg-email" class="form-input" placeholder="you@company.com"></div>
+      <div class="form-group"><label class="form-label">Password</label><input type="password" id="reg-password" class="form-input" placeholder="••••••••"></div>
+      <div class="form-group">
+        <label class="form-label">Role</label>
+        <select id="reg-role" class="form-input" onchange="toggleManagerField()">
+          <option value="employee">Employee</option>
+          <option value="manager">Manager</option>
+        </select>
+      </div>
+      <div class="form-group" id="reg-manager-group">
+        <label class="form-label">Your Manager (optional)</label>
+        <select id="reg-manager" class="form-input"><option value="">— No manager yet —</option></select>
+      </div>
+      <button class="btn-primary" id="reg-btn" onclick="register()">Create Account →</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-screen">
+  <header>
+    <div class="header-logo">Work<span>Sync</span></div>
+    <div class="header-right">
+      <div class="sync-bar"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Connected</span></div>
+      <div class="user-chip" onclick="openProfileModal()">
+        <div class="avatar" id="header-avatar" style="background:#e05a2b">JD</div>
+        <span class="user-name" id="header-name">John Doe</span>
+        <span class="role-badge" id="header-role">Employee</span>
+      </div>
+      <button class="btn-logout" onclick="logout()">Sign out</button>
+    </div>
+  </header>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showTab('dashboard')" id="tab-dashboard">📅 My Calendar</button>
+    <button class="nav-tab hidden" onclick="showTab('team')" id="tab-team">👥 Team View</button>
+    <button class="nav-tab" onclick="showTab('reports')" id="tab-reports">📊 Reports</button>
+    <button class="nav-tab hidden" onclick="showTab('admin')" id="tab-admin">👑 Admin Panel</button>
+  </div>
+  <main>
+    <!-- DASHBOARD -->
+    <div id="tab-content-dashboard">
+      <div class="stats-row" id="stats-row"></div>
+      <div class="calendar-section">
+        <div class="cal-header">
+          <div class="cal-title" id="cal-month-title"></div>
+          <div class="cal-nav">
+            <button onclick="changeMonth(-1)">‹</button>
+            <button class="cal-today-btn" onclick="goToday()">Today</button>
+            <button onclick="changeMonth(1)">›</button>
+          </div>
+        </div>
+        <div class="cal-grid">
+          <div class="cal-weekdays">
+            <div class="cal-weekday">Sun</div><div class="cal-weekday">Mon</div><div class="cal-weekday">Tue</div>
+            <div class="cal-weekday">Wed</div><div class="cal-weekday">Thu</div><div class="cal-weekday">Fri</div><div class="cal-weekday">Sat</div>
+          </div>
+          <div class="cal-days" id="cal-days"></div>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--office)"></div>Office</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--home)"></div>Work From Home</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--leave)"></div>Leave</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--holiday)"></div>Holiday</div>
+        </div>
+      </div>
+    </div>
+    <!-- TEAM -->
+    <div id="tab-content-team" class="hidden">
+      <div class="section-header"><div class="section-title">Team Overview</div></div>
+      <div class="filter-row">
+        <select class="filter-select" id="team-month-filter" onchange="renderTeamView()"></select>
+        <select class="filter-select" id="team-status-filter" onchange="renderTeamView()">
+          <option value="">All Statuses</option><option value="office">Office</option>
+          <option value="home">Work From Home</option><option value="leave">Leave</option>
+        </select>
+      </div>
+      <div class="team-table" id="team-table"></div>
+    </div>
+    <!-- REPORTS -->
+    <div id="tab-content-reports" class="hidden">
+      <div class="section-header">
+        <div class="section-title">Reports & Analytics</div>
+        <select class="filter-select" id="report-month-filter" onchange="renderReports()"></select>
+      </div>
+      <div id="report-user-label" style="font-size:13px;color:var(--text-muted);margin-bottom:16px"></div>
+      <div id="report-manager-picker" class="hidden" style="margin-bottom:16px">
+        <select class="filter-select" id="report-member-filter" onchange="renderReports()"><option value="__me__">My Stats</option></select>
+      </div>
+      <div class="report-grid" id="report-grid"></div>
+    </div>
+    <!-- ADMIN -->
+    <div id="tab-content-admin" class="hidden">
+      <div class="admin-banner">
+        <div style="font-size:22px">👑</div>
+        <div style="font-size:14px;font-weight:500">Logged in as <strong style="color:var(--admin)">System Administrator</strong>. Full visibility into all users.</div>
+      </div>
+      <div class="admin-stats" id="admin-stats"></div>
+      <div class="section-header">
+        <div class="section-title">All Users</div>
+        <div style="display:flex;gap:10px">
+          <input type="text" class="search-bar" id="admin-search" placeholder="Search name or email…" oninput="renderAdminTable()">
+          <select class="filter-select" id="admin-role-filter" onchange="renderAdminTable()">
+            <option value="">All Roles</option><option value="employee">Employee</option><option value="manager">Manager</option>
+          </select>
+        </div>
+      </div>
+      <div class="team-table" id="admin-table"></div>
+    </div>
+  </main>
+</div>
+
+<!-- DAY MODAL -->
+<div class="modal-overlay" id="day-modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-date-label"></div>
+    <div class="status-options">
+      <div class="status-option" data-status="office" onclick="selectStatus('office')">🏢 Work from Office</div>
+      <div class="status-option" data-status="home" onclick="selectStatus('home')">🏠 Work from Home</div>
+      <div class="status-option" data-status="leave" onclick="selectStatus('leave')">🌴 On Leave</div>
+      <div class="status-option" data-status="holiday" onclick="selectStatus('holiday')">🎉 Public Holiday</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-save" id="day-save-btn" onclick="saveStatus()">Save</button>
+      <button class="btn-clear" onclick="clearStatus()">Clear</button>
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROFILE MODAL -->
+<div class="modal-overlay" id="profile-modal">
+  <div class="modal profile-modal">
+    <div class="modal-title">My Profile</div>
+    <div id="profile-modal-body"></div>
+    <div class="modal-actions" style="margin-top:20px">
+      <button class="btn-save" id="profile-save-btn" onclick="saveProfile()">Save Changes</button>
+      <button class="btn-cancel" onclick="closeProfileModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════
+//  FIREBASE INIT
+// ═══════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyBW8X7liM4v_dahtn-fF91sdMo-iFhnBxo",
+  authDomain: "worksync-app-37c01.firebaseapp.com",
+  databaseURL: "https://worksync-app-37c01-default-rtdb.firebaseio.com",
+  projectId: "worksync-app-37c01",
+  storageBucket: "worksync-app-37c01.firebasestorage.app",
+  messagingSenderId: "714304215633",
+  appId: "1:714304215633:web:058512f74d7f223e16b670"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ═══════════════════════════════════════
+//  FIREBASE HELPERS
+// ═══════════════════════════════════════
+// Safe email key: replace . with , for Firebase paths
+function emailKey(email) { return email.replace(/\./g, ','); }
+function fromEmailKey(key) { return key.replace(/,/g, '.'); }
+
+async function fbGet(path) {
+  const snap = await db.ref(path).once('value');
+  return snap.val();
+}
+async function fbSet(path, val) {
+  await db.ref(path).set(val);
+}
+async function fbUpdate(path, val) {
+  await db.ref(path).update(val);
+}
+async function fbRemove(path) {
+  await db.ref(path).remove();
+}
+
+// ═══════════════════════════════════════
+//  IN-MEMORY CACHE
+// ═══════════════════════════════════════
+let USERS = {};       // { emailKey: userObj }
+let ATT = {};         // { emailKey: { dateStr: status } }
+let currentUser = null, calYear, calMonth, modalDate = null, selectedStatus = null;
+// Real-time listeners
+let teamListeners = {};
+
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+// ═══════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════
+function ds(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function initials(n) { return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
+function statusLabel(s) { return {office:'Office',home:'Work From Home',leave:'Leave',holiday:'Holiday'}[s]||s; }
+function statusIcon(s)  { return {office:'🏢',home:'🏠',leave:'🌴',holiday:'🎉'}[s]||''; }
+function getManagers()  { return Object.values(USERS).filter(u=>u.role==='manager'); }
+function getTeam(mid)   { return Object.values(USERS).filter(u=>u.managerId===mid); }
+function getAllNonAdmin(){ return Object.values(USERS).filter(u=>u.role!=='admin'); }
+function getAtt(email)  { return ATT[emailKey(email)] || {}; }
+
+function setSyncing(on, err) {
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  if (!dot) return;
+  dot.className = 'sync-dot' + (err?' error':on?' syncing':'');
+  lbl.textContent = err ? 'Error' : on ? 'Saving…' : 'Synced ✓';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = '✓ ' + msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════
+//  SEED DEMO DATA
+// ═══════════════════════════════════════
+async function seedDemoUsers() {
+  const defaults = [
+    { id:'admin@worksync.com', name:'System Admin',  email:'admin@worksync.com', password:'admin123', role:'admin',    managerId:null,          color:'#f59e0b' },
+    { id:'alice@co.com',       name:'Alice Johnson', email:'alice@co.com',       password:'pass123',  role:'manager',  managerId:null,          color:'#e05a2b' },
+    { id:'bob@co.com',         name:'Bob Smith',     email:'bob@co.com',         password:'pass123',  role:'employee', managerId:'alice@co.com', color:'#2b7de0' },
+    { id:'carol@co.com',       name:'Carol Davis',   email:'carol@co.com',       password:'pass123',  role:'employee', managerId:'alice@co.com', color:'#8b5cf6' },
+  ];
+  for (const u of defaults) {
+    const ek = emailKey(u.email);
+    if (!USERS[ek]) {
+      USERS[ek] = u;
+      await fbSet(`users/${ek}`, u);
+    }
+  }
+}
+
+// ═══════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════
+(async () => {
+  document.getElementById('loading-msg').textContent = 'Connecting to Firebase…';
+  try {
+    const usersSnap = await fbGet('users');
+    USERS = usersSnap || {};
+    await seedDemoUsers();
+    document.getElementById('loading-screen').style.display = 'none';
+    document.getElementById('auth-screen').style.display = 'flex';
+    populateRegManagerDropdown();
+  } catch(e) {
+    document.getElementById('loading-msg').textContent = '❌ Failed to connect. Check your internet connection.';
+  }
+})();
+
+// ═══════════════════════════════════════
+//  AUTH
+// ═══════════════════════════════════════
+function switchAuthTab(t) {
+  document.querySelectorAll('.auth-tab').forEach((el,i)=>el.classList.toggle('active',(i===0&&t==='login')||(i===1&&t==='register')));
+  document.getElementById('login-form').classList.toggle('hidden', t!=='login');
+  document.getElementById('register-form').classList.toggle('hidden', t!=='register');
+  document.getElementById('auth-error').style.display = 'none';
+  if (t==='register') populateRegManagerDropdown();
+}
+
+function toggleManagerField() {
+  document.getElementById('reg-manager-group').style.display = document.getElementById('reg-role').value==='employee'?'':'none';
+}
+
+function populateRegManagerDropdown() {
+  const sel = document.getElementById('reg-manager');
+  sel.innerHTML = '<option value="">— No manager yet —</option>';
+  getManagers().forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.email; o.textContent = `${m.name} (${m.email})`; sel.appendChild(o);
+  });
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+async function login() {
+  const email = document.getElementById('login-email').value.trim().toLowerCase();
+  const pass  = document.getElementById('login-password').value;
+  const ek = emailKey(email);
+  const btn = document.getElementById('login-btn');
+  btn.disabled=true; btn.textContent='Signing in…';
+  try {
+    // Always fetch fresh user from Firebase
+    const user = await fbGet(`users/${ek}`);
+    if (!user || user.password !== pass) {
+      btn.disabled=false; btn.textContent='Sign In →';
+      return showAuthError('Invalid email or password.');
+    }
+    USERS[ek] = user;
+    // Load this user's attendance
+    const att = await fbGet(`attendance/${ek}`);
+    ATT[ek] = att || {};
+    currentUser = user;
+    btn.disabled=false; btn.textContent='Sign In →';
+    initApp();
+  } catch(e) {
+    btn.disabled=false; btn.textContent='Sign In →';
+    showAuthError('Connection error. Please try again.');
+  }
+}
+
+async function register() {
+  const name  = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim().toLowerCase();
+  const pass  = document.getElementById('reg-password').value;
+  const role  = document.getElementById('reg-role').value;
+  const mid   = role==='employee'?(document.getElementById('reg-manager').value||null):null;
+  if (!name||!email||!pass) return showAuthError('Please fill all required fields.');
+  const ek = emailKey(email);
+  const btn = document.getElementById('reg-btn');
+  btn.disabled=true; btn.textContent='Creating…';
+  try {
+    const existing = await fbGet(`users/${ek}`);
+    if (existing) { btn.disabled=false; btn.textContent='Create Account →'; return showAuthError('Email already registered.'); }
+    const colors = ['#e05a2b','#2b7de0','#8b5cf6','#10b981','#f59e0b','#ec4899','#06b6d4'];
+    const newUser = { id:email, name, email, password:pass, role, managerId:mid, color:colors[Math.floor(Math.random()*colors.length)] };
+    await fbSet(`users/${ek}`, newUser);
+    await fbSet(`attendance/${ek}`, {});
+    USERS[ek] = newUser;
+    ATT[ek] = {};
+    currentUser = newUser;
+    btn.disabled=false; btn.textContent='Create Account →';
+    initApp();
+  } catch(e) {
+    btn.disabled=false; btn.textContent='Create Account →';
+    showAuthError('Connection error. Please try again.');
+  }
+}
+
+function logout() {
+  // Remove real-time listeners
+  Object.values(teamListeners).forEach(ref => ref.off());
+  teamListeners = {};
+  currentUser = null; ATT = {};
+  document.getElementById('app-screen').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-password').value = '';
+  document.getElementById('auth-error').style.display = 'none';
+  switchAuthTab('login');
+}
+
+// ═══════════════════════════════════════
+//  APP INIT
+// ═══════════════════════════════════════
+async function initApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  const app = document.getElementById('app-screen');
+  app.style.display = 'flex'; app.style.flexDirection = 'column';
+
+  const now = new Date(); calYear = now.getFullYear(); calMonth = now.getMonth();
+
+  document.getElementById('header-name').textContent = currentUser.name;
+  document.getElementById('header-role').textContent = currentUser.role.charAt(0).toUpperCase()+currentUser.role.slice(1);
+  document.getElementById('header-role').className = `role-badge ${currentUser.role}`;
+  document.getElementById('header-avatar').textContent = initials(currentUser.name);
+  document.getElementById('header-avatar').style.background = currentUser.color;
+
+  document.getElementById('tab-team').classList.toggle('hidden', currentUser.role!=='manager');
+  document.getElementById('tab-admin').classList.toggle('hidden', currentUser.role!=='admin');
+  document.getElementById('tab-dashboard').classList.toggle('hidden', currentUser.role==='admin');
+  document.getElementById('tab-reports').classList.toggle('hidden', currentUser.role==='admin');
+
+  populateMonthFilters();
+
+  if (currentUser.role === 'admin') {
+    // Load all users fresh
+    const snap = await fbGet('users');
+    USERS = snap || {};
+    showTab('admin');
+  } else {
+    // Set up real-time listener for current user's attendance
+    setupAttListener(currentUser.email);
+
+    if (currentUser.role === 'manager') {
+      // Load all users fresh for team view
+      const snap = await fbGet('users');
+      USERS = snap || {};
+    }
+    renderCalendar(); renderStats(); showTab('dashboard');
+  }
+}
+
+// ═══════════════════════════════════════
+//  REAL-TIME LISTENERS
+// ═══════════════════════════════════════
+function setupAttListener(email) {
+  const ek = emailKey(email);
+  if (teamListeners[ek]) teamListeners[ek].off();
+  const ref = db.ref(`attendance/${ek}`);
+  ref.on('value', snap => {
+    ATT[ek] = snap.val() || {};
+    // Re-render if this is current user
+    if (currentUser && email === currentUser.email) {
+      renderCalendar(); renderStats();
+    }
+    // Re-render team view if manager is watching
+    if (currentUser && currentUser.role === 'manager') {
+      const activeTab = document.querySelector('.nav-tab.active');
+      if (activeTab && activeTab.id === 'tab-team') renderTeamView();
+    }
+  });
+  teamListeners[ek] = ref;
+}
+
+function setupTeamListeners() {
+  const team = getTeam(currentUser.id);
+  team.forEach(m => setupAttListener(m.email));
+}
+
+// ═══════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════
+function showTab(name) {
+  ['dashboard','team','reports','admin'].forEach(t => {
+    document.getElementById(`tab-content-${t}`).classList.toggle('hidden', t!==name);
+    const b = document.getElementById(`tab-${t}`);
+    if (b) b.classList.toggle('active', t===name);
+  });
+  if (name==='team')    renderTeamView();
+  if (name==='reports') renderReports();
+  if (name==='admin')   renderAdminPanel();
+}
+
+// ═══════════════════════════════════════
+//  CALENDAR
+// ═══════════════════════════════════════
+function changeMonth(dir) {
+  calMonth+=dir;
+  if(calMonth>11){calMonth=0;calYear++;} if(calMonth<0){calMonth=11;calYear--;}
+  renderCalendar(); renderStats();
+}
+function goToday() { const n=new Date(); calYear=n.getFullYear(); calMonth=n.getMonth(); renderCalendar(); renderStats(); }
+
+function renderCalendar() {
+  document.getElementById('cal-month-title').textContent = `${MONTHS[calMonth]} ${calYear}`;
+  const container = document.getElementById('cal-days'); container.innerHTML='';
+  const att = getAtt(currentUser.email), today=ds(new Date());
+  const firstDay=new Date(calYear,calMonth,1).getDay();
+  const dim=new Date(calYear,calMonth+1,0).getDate();
+  const prevDays=new Date(calYear,calMonth,0).getDate();
+  for(let i=firstDay-1;i>=0;i--) container.appendChild(mkDay(prevDays-i,true,false,null,null));
+  for(let d=1;d<=dim;d++){
+    const date=new Date(calYear,calMonth,d), key=ds(date);
+    const isWE=date.getDay()===0||date.getDay()===6;
+    container.appendChild(mkDay(d,false,isWE,key,att[key]||null,key===today));
+  }
+  const total=firstDay+dim, rem=total%7===0?0:7-(total%7);
+  for(let i=1;i<=rem;i++) container.appendChild(mkDay(i,true,false,null,null));
+}
+function mkDay(num,other,weekend,key,status,isToday){
+  const el=document.createElement('div'); el.className='cal-day';
+  if(other) el.classList.add('other-month');
+  if(weekend) el.classList.add('weekend');
+  if(isToday) el.classList.add('today');
+  if(status) el.classList.add(`status-${status}`);
+  el.innerHTML=`<span>${num}</span>${status?'<div class="day-dot"></div>':''}`;
+  if(!other&&!weekend&&key) el.addEventListener('click',()=>openModal(key));
+  return el;
+}
+
+// ═══════════════════════════════════════
+//  STATS
+// ═══════════════════════════════════════
+function renderStats() {
+  const att=getAtt(currentUser.email);
+  let office=0,home=0,leave=0,workdays=0;
+  for(let d=1;d<=new Date(calYear,calMonth+1,0).getDate();d++){
+    const date=new Date(calYear,calMonth,d);
+    if(date.getDay()===0||date.getDay()===6) continue;
+    workdays++;
+    const s=att[ds(date)];
+    if(s==='office') office++; else if(s==='home') home++; else if(s==='leave') leave++;
+  }
+  const req=Math.ceil(workdays/5)*2, pct=req>0?Math.min(100,Math.round((office/req)*100)):0;
+  document.getElementById('stats-row').innerHTML=`
+    <div class="stat-card office"><div class="stat-label">Office Days</div><div class="stat-value">${office}</div><div class="stat-sub">Required: ${req}</div></div>
+    <div class="stat-card home"><div class="stat-label">Work From Home</div><div class="stat-value">${home}</div><div class="stat-sub">${workdays-office-home-leave} unlogged</div></div>
+    <div class="stat-card leave"><div class="stat-label">On Leave</div><div class="stat-value">${leave}</div><div class="stat-sub">This month</div></div>
+    <div class="stat-card compliance"><div class="stat-label">Compliance</div><div class="stat-value">${pct}%</div><div class="stat-sub">${pct>=100?'✅ On track':`${req-office} more days needed`}</div></div>`;
+}
+
+// ═══════════════════════════════════════
+//  DAY MODAL
+// ═══════════════════════════════════════
+function openModal(key) {
+  const att=getAtt(currentUser.email);
+  modalDate=key; selectedStatus=att[key]||null;
+  const [y,m,d]=key.split('-');
+  document.getElementById('modal-date-label').textContent=new Date(y,m-1,d).toLocaleDateString('en-US',{weekday:'long',day:'numeric',month:'long'});
+  document.querySelectorAll('.status-option').forEach(o=>{
+    o.className=`status-option${selectedStatus===o.dataset.status?` selected-${selectedStatus}`:''}`;
+  });
+  document.getElementById('day-modal').classList.add('open');
+}
+function closeModal(){ document.getElementById('day-modal').classList.remove('open'); modalDate=null; selectedStatus=null; }
+function selectStatus(s){
+  selectedStatus=s;
+  document.querySelectorAll('.status-option').forEach(o=>{o.className=`status-option${s===o.dataset.status?` selected-${s}`:''}`;});
+}
+async function saveStatus(){
+  if(!modalDate||!selectedStatus) return;
+  const btn=document.getElementById('day-save-btn');
+  btn.disabled=true; btn.textContent='Saving…';
+  setSyncing(true);
+  try {
+    const ek=emailKey(currentUser.email);
+    if(!ATT[ek]) ATT[ek]={};
+    ATT[ek][modalDate]=selectedStatus;
+    await fbSet(`attendance/${ek}/${modalDate}`, selectedStatus);
+    setSyncing(false);
+    showToast(`Status set: ${statusLabel(selectedStatus)}`);
+  } catch(e) { setSyncing(false,true); showToast('Save failed — check connection'); }
+  btn.disabled=false; btn.textContent='Save';
+  closeModal();
+}
+async function clearStatus(){
+  if(!modalDate) return;
+  setSyncing(true);
+  try {
+    const ek=emailKey(currentUser.email);
+    if(ATT[ek]) delete ATT[ek][modalDate];
+    await fbRemove(`attendance/${ek}/${modalDate}`);
+    setSyncing(false);
+    showToast('Status cleared');
+  } catch(e){ setSyncing(false,true); }
+  closeModal();
+}
+document.getElementById('day-modal').addEventListener('click',e=>{if(e.target.id==='day-modal') closeModal();});
+
+// ═══════════════════════════════════════
+//  PROFILE MODAL
+// ═══════════════════════════════════════
+function openProfileModal(){
+  if(currentUser.role==='admin') return;
+  const manager=currentUser.managerId?USERS[emailKey(currentUser.managerId)]:null;
+  const managers=getManagers().filter(m=>m.email!==currentUser.email);
+  let mgrSection='';
+  if(currentUser.role==='employee'){
+    const opts=managers.map(m=>`<option value="${m.email}" ${currentUser.managerId===m.email?'selected':''}>${m.name} (${m.email})</option>`).join('');
+    mgrSection=`
+      <div class="profile-section-title">Manager Assignment</div>
+      ${manager?`<div class="current-manager-badge">👔 Current: ${manager.name}</div>`:'<div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">No manager assigned yet</div>'}
+      <div class="profile-field">
+        <div class="profile-label">Select / Change Manager</div>
+        <select id="profile-manager" class="profile-select"><option value="">— No manager —</option>${opts}</select>
+      </div>`;
+  }
+  document.getElementById('profile-modal-body').innerHTML=`
+    <div class="profile-section-title">Personal Info</div>
+    <div class="profile-field"><div class="profile-label">Full Name</div><input id="profile-name" class="profile-input" value="${currentUser.name}"></div>
+    <div class="profile-field"><div class="profile-label">Email</div><input class="profile-input" value="${currentUser.email}" readonly></div>
+    <div class="profile-field"><div class="profile-label">Role</div><input class="profile-input" value="${currentUser.role.charAt(0).toUpperCase()+currentUser.role.slice(1)}" readonly></div>
+    ${mgrSection}`;
+  document.getElementById('profile-modal').classList.add('open');
+}
+function closeProfileModal(){ document.getElementById('profile-modal').classList.remove('open'); }
+document.getElementById('profile-modal').addEventListener('click',e=>{if(e.target.id==='profile-modal') closeProfileModal();});
+
+async function saveProfile(){
+  const name=document.getElementById('profile-name').value.trim();
+  if(!name) return showToast('Name cannot be empty');
+  const btn=document.getElementById('profile-save-btn');
+  btn.disabled=true; btn.textContent='Saving…';
+  setSyncing(true);
+  try {
+    currentUser.name=name;
+    if(currentUser.role==='employee') currentUser.managerId=document.getElementById('profile-manager').value||null;
+    await fbUpdate(`users/${emailKey(currentUser.email)}`, { name:currentUser.name, managerId:currentUser.managerId });
+    USERS[emailKey(currentUser.email)]=currentUser;
+    setSyncing(false);
+    document.getElementById('header-name').textContent=currentUser.name;
+    document.getElementById('header-avatar').textContent=initials(currentUser.name);
+    closeProfileModal();
+    showToast('Profile saved to Firebase ✓');
+  } catch(e){ setSyncing(false,true); showToast('Save failed'); }
+  btn.disabled=false; btn.textContent='Save Changes';
+}
+
+// ═══════════════════════════════════════
+//  TEAM VIEW — Real-time
+// ═══════════════════════════════════════
+async function renderTeamView(){
+  if(currentUser.role!=='manager') return;
+
+  // Setup real-time listeners for all team members
+  setupTeamListeners();
+
+  const team=getTeam(currentUser.id);
+  // Fetch latest attendance from Firebase for all team members
+  await Promise.all(team.map(async m => {
+    const ek=emailKey(m.email);
+    const att=await fbGet(`attendance/${ek}`);
+    ATT[ek]=att||{};
+  }));
+
+  const selMonth=document.getElementById('team-month-filter').value;
+  const [fy,fm]=selMonth.split('-').map(Number);
+  const statusFilter=document.getElementById('team-status-filter').value;
+  const today=ds(new Date());
+  let rows='';
+
+  team.forEach(member=>{
+    const att=getAtt(member.email);
+    let office=0,home=0,leave=0,workdays=0;
+    for(let d=1;d<=new Date(fy,fm,0).getDate();d++){
+      const date=new Date(fy,fm-1,d);
+      if(date.getDay()===0||date.getDay()===6) continue;
+      workdays++;
+      const s=att[ds(date)];
+      if(s==='office') office++; if(s==='home') home++; if(s==='leave') leave++;
+    }
+    const req=Math.ceil(workdays/5)*2, pct=req>0?Math.round((office/req)*100):0;
+    const todayStatus=att[today]||null;
+    if(statusFilter&&todayStatus!==statusFilter) return;
+    const cc=pct>=100?'bar-good':pct>=60?'bar-warn':'bar-bad';
+    rows+=`<tr>
+      <td><div class="member-info"><div class="avatar" style="background:${member.color};width:32px;height:32px;font-size:12px">${initials(member.name)}</div>
+      <div><div style="font-weight:500">${member.name}</div><div style="font-size:12px;color:var(--text-muted)">${member.email}</div></div></div></td>
+      <td>${todayStatus?`<span class="status-pill pill-${todayStatus}">${statusIcon(todayStatus)} ${statusLabel(todayStatus)}</span>`:'<span class="status-pill pill-none">Not logged</span>'}</td>
+      <td style="text-align:center"><strong>${office}</strong> <span style="color:var(--text-muted);font-size:12px">/ ${req}</span></td>
+      <td style="text-align:center">${home}</td><td style="text-align:center">${leave}</td>
+      <td><div class="compliance-bar"><div class="bar-track"><div class="bar-fill ${cc}" style="width:${Math.min(100,pct)}%"></div></div><span style="font-size:12px;font-weight:600">${pct}%</span></div></td>
+    </tr>`;
+  });
+  if(!rows) rows=`<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">No team members found</td></tr>`;
+  document.getElementById('team-table').innerHTML=`<table><thead><tr><th>Member</th><th>Today</th><th style="text-align:center">Office</th><th style="text-align:center">WFH</th><th style="text-align:center">Leave</th><th>Compliance</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ═══════════════════════════════════════
+//  REPORTS
+// ═══════════════════════════════════════
+async function renderReports(){
+  const selMonth=document.getElementById('report-month-filter').value;
+  if(!selMonth) return;
+  const [fy,fm]=selMonth.split('-').map(Number);
+  let userEmail=currentUser.email, reportName='My';
+
+  if(currentUser.role==='manager'){
+    const picker=document.getElementById('report-member-filter').value;
+    if(picker&&picker!=='__me__'){ userEmail=picker; reportName=(USERS[emailKey(picker)]?.name||'Team Member')+"'s"; }
+    document.getElementById('report-manager-picker').classList.remove('hidden');
+    const pick=document.getElementById('report-member-filter');
+    if(pick.options.length<=1){
+      getTeam(currentUser.id).forEach(m=>{const o=document.createElement('option');o.value=m.email;o.textContent=m.name;pick.appendChild(o);});
+    }
+    // Fetch fresh attendance for selected member
+    const ek=emailKey(userEmail);
+    const att=await fbGet(`attendance/${ek}`);
+    ATT[ek]=att||{};
+  }
+
+  document.getElementById('report-user-label').textContent=`${reportName} attendance for ${MONTHS[fm-1]} ${fy}`;
+  const att=getAtt(userEmail);
+  let office=0,home=0,leave=0,holiday=0,workdays=0;
+  const weeks={};
+  const dim=new Date(fy,fm,0).getDate();
+  for(let d=1;d<=dim;d++){
+    const date=new Date(fy,fm-1,d);
+    if(date.getDay()===0||date.getDay()===6) continue;
+    workdays++;
+    const s=att[ds(date)], wn=Math.ceil(d/7);
+    if(!weeks[wn]) weeks[wn]={office:0,home:0,leave:0};
+    if(s==='office'){office++;weeks[wn].office++;}
+    else if(s==='home'){home++;weeks[wn].home++;}
+    else if(s==='leave'){leave++;weeks[wn].leave++;}
+    else if(s==='holiday') holiday++;
+  }
+  const req=Math.ceil(workdays/5)*2, pct=req>0?Math.min(100,Math.round((office/req)*100)):0;
+  const total=office+home+leave+holiday;
+  const cx=60,cy=60,r=46;
+  let segs='',cum=0;
+  [{val:office,color:'var(--office)'},{val:home,color:'var(--home)'},{val:leave,color:'var(--leave)'},{val:holiday,color:'var(--holiday)'}].forEach(s=>{
+    if(!s.val) return;
+    const sa=(cum/(total||1))*2*Math.PI-Math.PI/2,ea=((cum+s.val)/(total||1))*2*Math.PI-Math.PI/2;
+    segs+=`<path d="M${cx},${cy} L${cx+r*Math.cos(sa)},${cy+r*Math.sin(sa)} A${r},${r} 0 ${s.val/(total||1)>.5?1:0},1 ${cx+r*Math.cos(ea)},${cy+r*Math.sin(ea)} Z" fill="${s.color}" opacity=".85"/>`;
+    cum+=s.val;
+  });
+  const weekRows=Object.entries(weeks).map(([wn,w])=>`
+    <div class="week-row"><span style="font-weight:500">Week ${wn}</span><div class="week-badges">
+      <span class="status-pill pill-office" style="font-size:11px;padding:2px 7px">🏢 ${w.office}</span>
+      <span class="status-pill pill-home" style="font-size:11px;padding:2px 7px">🏠 ${w.home}</span>
+      ${w.leave?`<span class="status-pill pill-leave" style="font-size:11px;padding:2px 7px">🌴 ${w.leave}</span>`:''}
+    </div></div>`).join('');
+
+  document.getElementById('report-grid').innerHTML=`
+    <div class="report-card">
+      <div class="report-card-title">Attendance Breakdown</div>
+      <div class="donut-wrap">
+        <svg width="120" height="120" viewBox="0 0 120 120">
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--warm-mid)"/>${segs}
+          <circle cx="${cx}" cy="${cy}" r="28" fill="white"/>
+          <text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="16" font-weight="700" font-family="Syne,sans-serif" fill="var(--ink)">${total}</text>
+          <text x="${cx}" y="${cy+12}" text-anchor="middle" font-size="9" fill="var(--text-muted)">days logged</text>
+        </svg>
+        <div class="donut-legend">
+          <div class="donut-item"><div class="donut-swatch" style="background:var(--office)"></div>Office<span class="donut-count">${office}</span></div>
+          <div class="donut-item"><div class="donut-swatch" style="background:var(--home)"></div>WFH<span class="donut-count">${home}</span></div>
+          <div class="donut-item"><div class="donut-swatch" style="background:var(--leave)"></div>Leave<span class="donut-count">${leave}</span></div>
+          <div class="donut-item"><div class="donut-swatch" style="background:var(--holiday)"></div>Holiday<span class="donut-count">${holiday}</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="report-card">
+      <div class="report-card-title">Office Compliance</div>
+      <div style="margin-bottom:12px;display:flex;justify-content:space-between;font-size:13px"><span>Office: <strong>${office}</strong></span><span>Required: <strong>${req}</strong></span></div>
+      <div style="height:12px;background:var(--warm-mid);border-radius:99px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${Math.min(100,pct)}%;background:${pct>=100?'var(--holiday)':pct>=60?'#f59e0b':'var(--office)'};border-radius:99px"></div></div>
+      <div style="font-size:28px;font-family:Syne,sans-serif;font-weight:700;color:${pct>=100?'var(--holiday)':pct>=60?'#f59e0b':'var(--office)'}">${pct}% ${pct>=100?'✅':pct>=60?'⚠️':'🔴'}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:6px;background:var(--warm-mid);padding:10px;border-radius:8px">📋 Policy: Min 2 office days/week (~${req} days for ${MONTHS[fm-1]})</div>
+    </div>
+    <div class="report-card" style="grid-column:1/-1">
+      <div class="report-card-title">Week-by-Week Breakdown</div>
+      <div class="week-list">${weekRows||'<p style="color:var(--text-muted);font-size:13px">No data logged yet.</p>'}</div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════
+//  ADMIN PANEL
+// ═══════════════════════════════════════
+async function renderAdminPanel(){
+  const snap=await fbGet('users');
+  USERS=snap||{};
+  renderAdminStats(); renderAdminTable();
+}
+function renderAdminStats(){
+  const all=getAllNonAdmin();
+  const emp=all.filter(u=>u.role==='employee'), mgr=all.filter(u=>u.role==='manager');
+  document.getElementById('admin-stats').innerHTML=`
+    <div class="admin-stat"><div class="admin-stat-value">${all.length}</div><div class="admin-stat-label">Total Users</div></div>
+    <div class="admin-stat"><div class="admin-stat-value" style="color:var(--office)">${mgr.length}</div><div class="admin-stat-label">Managers</div></div>
+    <div class="admin-stat"><div class="admin-stat-value" style="color:var(--home)">${emp.length}</div><div class="admin-stat-label">Employees</div></div>`;
+}
+function renderAdminTable(){
+  const q=(document.getElementById('admin-search')?.value||'').toLowerCase();
+  const rf=document.getElementById('admin-role-filter')?.value||'';
+  const all=getAllNonAdmin().filter(u=>{
+    const mq=!q||u.name.toLowerCase().includes(q)||u.email.toLowerCase().includes(q);
+    return mq&&(!rf||u.role===rf);
+  });
+  let rows='';
+  all.forEach(u=>{
+    const mgr=u.managerId?USERS[emailKey(u.managerId)]:null;
+    const ts=u.role==='manager'?getTeam(u.id).length:null;
+    rows+=`<tr>
+      <td><div class="member-info"><div class="avatar" style="background:${u.color};width:32px;height:32px;font-size:12px">${initials(u.name)}</div>
+      <div><div style="font-weight:500">${u.name}</div><div style="font-size:12px;color:var(--text-muted)">${u.email}</div></div></div></td>
+      <td><span class="status-pill pill-${u.role}">${u.role==='manager'?'👔':'👤'} ${u.role.charAt(0).toUpperCase()+u.role.slice(1)}</span></td>
+      <td>${mgr?`<div class="member-info"><div class="avatar" style="background:${mgr.color};width:24px;height:24px;font-size:10px">${initials(mgr.name)}</div><span style="font-size:13px">${mgr.name}</span></div>`:u.role==='manager'?'<span style="color:var(--text-muted);font-size:12px">— (Is a manager)</span>':'<span style="font-size:12px;color:#f59e0b">⚠ Unassigned</span>'}</td>
+      <td style="font-size:13px;color:var(--text-muted)">${u.role==='manager'?`<strong style="color:var(--ink)">${ts}</strong> member${ts!==1?'s':''}`:  '—'}</td>
+      <td style="font-size:12px;color:var(--text-muted)">${u.email}</td>
+    </tr>`;
+  });
+  if(!rows) rows=`<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted)">No users found</td></tr>`;
+  document.getElementById('admin-table').innerHTML=`<table><thead><tr><th>User</th><th>Role</th><th>Manager</th><th>Team Size</th><th>Email</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ═══════════════════════════════════════
+//  MONTH FILTERS
+// ═══════════════════════════════════════
+function populateMonthFilters(){
+  const now=new Date(); let html='';
+  for(let i=-3;i<=2;i++){
+    const d=new Date(now.getFullYear(),now.getMonth()+i,1);
+    html+=`<option value="${d.getFullYear()}-${d.getMonth()+1}" ${i===0?'selected':''}>${MONTHS[d.getMonth()]} ${d.getFullYear()}</option>`;
+  }
+  ['team-month-filter','report-month-filter'].forEach(id=>{const el=document.getElementById(id);if(el) el.innerHTML=html;});
+}
+</script>
+</body>
+</html>

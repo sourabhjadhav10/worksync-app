@@ -442,8 +442,22 @@
   </div>
 </div>
 
+<!-- SESSION WARNING MODAL -->
+<div class="modal-overlay" id="session-modal">
+  <div class="modal" style="width:360px;text-align:center">
+    <div style="font-size:40px;margin-bottom:12px">⏱️</div>
+    <div class="modal-title" style="justify-content:center">Session Expiring Soon</div>
+    <p style="font-size:14px;color:var(--text-muted);margin-bottom:8px">You've been inactive for a while.</p>
+    <p style="font-size:14px;color:var(--ink);margin-bottom:24px">You will be automatically logged out in <strong id="session-countdown" style="color:var(--office);font-size:18px">2:00</strong></p>
+    <div class="modal-actions" style="justify-content:center">
+      <button class="btn-save" onclick="extendSession()" style="flex:unset;padding:11px 32px">Stay Logged In</button>
+      <button class="btn-cancel" onclick="logout()">Logout Now</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v33</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v37</div>
 
 <script>
 // ═══════════════════════════════════════
@@ -612,6 +626,7 @@ async function changeFirstPassword() {
 }
 
 function logout() {
+  stopActivityListeners();
   Object.values(teamListeners).forEach(r=>r.off());
   teamListeners={};
   currentUser=null; ATT={};
@@ -647,6 +662,8 @@ async function initApp() {
   document.getElementById('tab-reports').classList.toggle('hidden', isAdmin);
 
   populateMonthFilters();
+  startActivityListeners();
+  resetInactivityTimer();
 
   if (isAdmin) {
     const snap=await fbGet('users'); USERS=snap||{};
@@ -1196,8 +1213,68 @@ async function doExport(){
 }
 
 // ═══════════════════════════════════════
-//  MONTH FILTERS
+//  SESSION INACTIVITY TIMER
+//  • 15 min inactivity → show warning
+//  • 2 min warning countdown → auto logout
 // ═══════════════════════════════════════
+const INACTIVE_MS  = 13 * 60 * 1000; // 13 min → show warning
+const WARNING_MS   = 2  * 60 * 1000; // 2 min warning countdown
+let inactivityTimer  = null;
+let countdownTimer   = null;
+let countdownSeconds = 120;
+
+const ACTIVITY_EVENTS = ['mousemove','mousedown','keydown','touchstart','scroll','click'];
+
+function resetInactivityTimer() {
+  if (!currentUser) return;
+  clearTimeout(inactivityTimer);
+  inactivityTimer = setTimeout(showSessionWarning, INACTIVE_MS);
+}
+
+function startActivityListeners() {
+  ACTIVITY_EVENTS.forEach(e => document.addEventListener(e, resetInactivityTimer, { passive: true }));
+}
+
+function stopActivityListeners() {
+  ACTIVITY_EVENTS.forEach(e => document.removeEventListener(e, resetInactivityTimer));
+  clearTimeout(inactivityTimer);
+  clearInterval(countdownTimer);
+}
+
+function showSessionWarning() {
+  document.getElementById('session-modal').classList.add('open');
+  countdownSeconds = 120;
+  updateCountdownDisplay();
+  countdownTimer = setInterval(() => {
+    countdownSeconds--;
+    updateCountdownDisplay();
+    if (countdownSeconds <= 0) {
+      clearInterval(countdownTimer);
+      document.getElementById('session-modal').classList.remove('open');
+      logout();
+      showToastRaw('Session expired. Please log in again.');
+    }
+  }, 1000);
+}
+
+function updateCountdownDisplay() {
+  const m = Math.floor(countdownSeconds / 60);
+  const s = countdownSeconds % 60;
+  document.getElementById('session-countdown').textContent = `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function extendSession() {
+  clearInterval(countdownTimer);
+  document.getElementById('session-modal').classList.remove('open');
+  resetInactivityTimer();
+  showToast('Session extended ✓');
+}
+
+function showToastRaw(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
 function populateMonthFilters(){
   const now=new Date(); let html='';
   for(let i=-3;i<=2;i++){

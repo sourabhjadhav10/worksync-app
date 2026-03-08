@@ -117,6 +117,8 @@
   .cal-day.status-home{background:var(--home-bg);border-color:rgba(43,125,224,.3);}
   .cal-day.status-leave{background:var(--leave-bg);border-color:rgba(139,92,246,.3);}
   .cal-day.status-holiday{background:var(--holiday-bg);border-color:rgba(16,185,129,.3);}
+  .day-status-icon{font-size:14px;margin-top:3px;line-height:1;}
+  .cal-day.status-office .day-num,.cal-day.status-home .day-num,.cal-day.status-leave .day-num,.cal-day.status-holiday .day-num{font-size:11px;color:var(--text-muted);}
   .day-dot{width:6px;height:6px;border-radius:50%;margin-top:4px;}
   .status-office .day-dot{background:var(--office);}
   .status-home .day-dot{background:var(--home);}
@@ -438,6 +440,7 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 // ═══════════════════════════════════════
 function ds(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function initials(n) { return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
+function statusCalIcon(s) { return {office:'🏢',home:'🏠',leave:'🌴',holiday:'🎉'}[s]||''; }
 function statusLabel(s) { return {office:'Office',home:'Work From Home',leave:'Leave',holiday:'Holiday'}[s]||s; }
 function statusIcon(s)  { return {office:'🏢',home:'🏠',leave:'🌴',holiday:'🎉'}[s]||''; }
 function getManagers()  { return Object.values(USERS).filter(u=>u.role==='manager'); }
@@ -727,7 +730,7 @@ function mkDay(num,other,weekend,key,status,isToday){
   if(weekend) el.classList.add('weekend');
   if(isToday) el.classList.add('today');
   if(status) el.classList.add(`status-${status}`);
-  el.innerHTML=`<span>${num}</span>${status?'<div class="day-dot"></div>':''}`;
+  el.innerHTML=`<span>${num}</span>${status?`<div class="day-status-icon">${statusCalIcon(status)}</div>`:''}`;
   if(!other&&!weekend&&key) el.addEventListener('click',()=>openModal(key));
   return el;
 }

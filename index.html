@@ -778,9 +778,10 @@ function calcCompliance(att, year, month) {
     const dow = date.getDay();
     if (dow === 0 || dow === 6) continue; // skip weekends
 
-    // Week key: year-weekNumber (Sun=start anchor)
+    // Week key: Sunday to Saturday
+    // Find the Sunday that starts this week
     const weekStart = new Date(date);
-    weekStart.setDate(date.getDate() - dow + 1); // Monday of that week
+    weekStart.setDate(date.getDate() - dow); // Sunday of that week (dow=0 for Sun, so no change for Sun)
     const wk = `${weekStart.getFullYear()}-${String(weekStart.getMonth()+1).padStart(2,'0')}-${String(weekStart.getDate()).padStart(2,'0')}`;
 
     if (!weeks[wk]) weeks[wk] = { office:0, leave:0, holiday:0, workdays:0, required:0 };

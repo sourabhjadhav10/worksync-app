@@ -224,7 +224,7 @@
   .toast.show{transform:translateY(0);opacity:1;}
   .hidden{display:none!important;}
 
-  @media(max-width:768px){main{padding:16px;}.stats-row,.admin-stats{grid-template-columns:repeat(2,1fr);}.report-grid{grid-template-columns:1fr;}header{padding:0 16px;}.nav-tabs{padding:0 16px;overflow-x:auto;}}
+  @media(max-width:768px){main{padding:16px;}.stats-row,.admin-stats{grid-template-columns:repeat(2,1fr);}.report-grid{grid-template-columns:1fr;}header{padding:0 16px;}.nav-tabs{padding:0 16px;overflow-x:auto;}.month-card-body{grid-template-columns:1fr!important;}.week-row{flex-direction:column;align-items:flex-start;gap:6px;}}
 </style>
 </head>
 <body>
@@ -459,7 +459,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v9</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v10</div>
 
 <script>
 // ═══════════════════════════════════════
@@ -1112,7 +1112,7 @@ async function renderReports(){
         </div>
       </div>
       <!-- Content -->
-      <div style="padding:16px 20px;display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start">
+      <div style="padding:16px 20px;display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start" class="month-card-body">
         <!-- Left: donut + legend + compliance bar -->
         <div>
           <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
@@ -1125,7 +1125,7 @@ async function renderReports(){
             </div>
           </div>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px">Compliance: WFO ${office} / Required ${req}</div>
-          <div style="height:8px;background:var(--warm-mid);border-radius:99px;overflow:hidden;width:200px">
+          <div style="height:8px;background:var(--warm-mid);border-radius:99px;overflow:hidden;width:100%;max-width:200px">
             <div style="height:100%;width:${Math.min(100,pct)}%;background:${barColor};border-radius:99px"></div>
           </div>
         </div>

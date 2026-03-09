@@ -460,7 +460,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v5</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v6</div>
 
 <script>
 // ═══════════════════════════════════════
@@ -720,6 +720,10 @@ function calcCompliance(att,year,month) {
   const dow1 = firstOfMonth.getDay();
   const startMonday = new Date(firstOfMonth);
   startMonday.setDate(firstOfMonth.getDate() - (dow1 === 0 ? 6 : dow1 - 1));
+  // If startMonday fell into the previous month, skip forward to the first real week of this month
+  if (startMonday.getMonth() !== month || startMonday.getFullYear() !== year) {
+    startMonday.setDate(startMonday.getDate() + 7);
+  }
 
   const lastOfMonth = new Date(year, month+1, 0);
   const dowL = lastOfMonth.getDay();

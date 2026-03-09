@@ -267,11 +267,11 @@
     <div class="header-logo">Work<span>Sync</span></div>
     <div class="header-right">
       <div class="sync-bar"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Connected</span></div>
+      <div style="font-size:11px;color:rgba(255,252,245,.3);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;">v37</div>
       <div class="user-chip" onclick="openProfileModal()">
         <div class="avatar" id="header-avatar" style="background:#e05a2b">JD</div>
         <span class="user-name" id="header-name">John Doe</span>
       </div>
-
     </div>
   </header>
   <div class="nav-tabs">
@@ -460,7 +460,6 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: 1</div>
 
 <script>
 // ═══════════════════════════════════════
@@ -546,7 +545,7 @@ async function seedAdmin() {
     await seedAdmin();
 
     // Restore session
-    const savedEmail = sessionStorage.getItem('ws_session');
+    const savedEmail = localStorage.getItem('ws_session');
     if (savedEmail) {
       document.getElementById('loading-msg').textContent = 'Restoring session…';
       const ek = emailKey(savedEmail);
@@ -558,7 +557,7 @@ async function seedAdmin() {
         document.getElementById('loading-screen').style.display = 'none';
         initApp();
         return;
-      } else { sessionStorage.removeItem('ws_session'); }
+      } else { localStorage.removeItem('ws_session'); }
     }
 
     document.getElementById('loading-screen').style.display = 'none';
@@ -597,7 +596,7 @@ async function login() {
       return;
     }
 
-    sessionStorage.setItem('ws_session', email);
+    localStorage.setItem('ws_session', email);
     initApp();
   } catch(e) {
     btn.disabled=false; btn.textContent='Sign In →';
@@ -618,7 +617,7 @@ async function changeFirstPassword() {
     currentUser.mustChangePw = false;
     await fbUpdate(`users/${emailKey(currentUser.email)}`, { password:np, mustChangePw:false });
     USERS[emailKey(currentUser.email)] = currentUser;
-    sessionStorage.setItem('ws_session', currentUser.email);
+    localStorage.setItem('ws_session', currentUser.email);
     document.getElementById('change-pw-screen').style.display = 'none';
     btn.disabled=false; btn.textContent='Set Password & Continue →';
     initApp();
@@ -633,7 +632,7 @@ function logout() {
   Object.values(teamListeners).forEach(r=>r.off());
   teamListeners={};
   currentUser=null; ATT={};
-  sessionStorage.removeItem('ws_session');
+  localStorage.removeItem('ws_session');
   document.getElementById('app-screen').style.display='none';
   document.getElementById('auth-screen').style.display='flex';
   document.getElementById('login-email').value='';
@@ -714,34 +713,52 @@ function setupTeamListeners() { getTeam(currentUser.id).forEach(m=>setupAttListe
 //  COMPLIANCE
 // ═══════════════════════════════════════
 function calcCompliance(att,year,month) {
-  const dim=new Date(year,month+1,0).getDate();
-  const weeks={};
-  for(let d=1;d<=dim;d++){
-    const date=new Date(year,month,d), dow=date.getDay();
-    if(dow===0||dow===6) continue;
-    const monday=new Date(date); monday.setDate(date.getDate()-(dow-1));
-    const wk=ds(monday);
-    if(!weeks[wk]) weeks[wk]={office:0,leave:0,holiday:0,home:0,workdays:0};
-    weeks[wk].workdays++;
-    const s=att[ds(date)];
-    if(s==='office') weeks[wk].office++;
-    if(s==='leave')  weeks[wk].leave++;
-    if(s==='holiday')weeks[wk].holiday++;
-    if(s==='home')   weeks[wk].home++;
+  // Use full Mon-Fri weeks that touch this month (weeks span month boundaries).
+  // e.g. if Mar 30-31 are Mon-Tue, the week Mon30Mar-Fri3Apr is evaluated as one unit.
+
+  const firstOfMonth = new Date(year, month, 1);
+  const dow1 = firstOfMonth.getDay();
+  const startMonday = new Date(firstOfMonth);
+  startMonday.setDate(firstOfMonth.getDate() - (dow1 === 0 ? 6 : dow1 - 1));
+
+  const lastOfMonth = new Date(year, month+1, 0);
+  const dowL = lastOfMonth.getDay();
+  const lastMonday = new Date(lastOfMonth);
+  lastMonday.setDate(lastOfMonth.getDate() - (dowL === 0 ? 6 : dowL - 1));
+
+  const weeks = {}, weekOrder = [];
+  const cursor = new Date(startMonday);
+  while (cursor <= lastMonday) {
+    const wk = ds(new Date(cursor));
+    weekOrder.push(wk);
+    weeks[wk] = {office:0, leave:0, holiday:0, home:0, workdays:0};
+    for (let i = 0; i < 5; i++) {
+      const day = new Date(cursor);
+      day.setDate(cursor.getDate() + i);
+      weeks[wk].workdays++;
+      const s = att[ds(day)];
+      if (s==='office')  weeks[wk].office++;
+      if (s==='leave')   weeks[wk].leave++;
+      if (s==='holiday') weeks[wk].holiday++;
+      if (s==='home')    weeks[wk].home++;
+    }
+    cursor.setDate(cursor.getDate() + 7);
   }
-  let totalRequired=0,totalOffice=0,weeksOnTrack=0,weeksTotal=0;
+
+  let totalRequired=0, totalOffice=0, weeksOnTrack=0, weeksTotal=0;
   const weekDetails=[];
-  Object.entries(weeks).forEach(([wk,w])=>{
-    const req=Math.max(0,2-(w.leave+w.holiday));
-    const met=w.office>=req;
-    w.req=req; w.met=met;
-    totalRequired+=req; totalOffice+=w.office; weeksTotal++;
-    if(met) weeksOnTrack++;
-    weekDetails.push({wk,...w});
+  weekOrder.forEach(wk => {
+    const w = weeks[wk];
+    const req = Math.max(0, 2 - (w.leave + w.holiday));
+    const met = w.office >= req;
+    w.req = req; w.met = met;
+    totalRequired += req; totalOffice += w.office; weeksTotal++;
+    if (met) weeksOnTrack++;
+    weekDetails.push({wk, ...w});
   });
-  // Compliance % = weeks on track / total weeks (not office days ratio)
-  const pct=weeksTotal>0?Math.round((weeksOnTrack/weeksTotal)*100):100;
-  return {totalOffice,totalRequired,weeksOnTrack,weeksTotal,pct,weekDetails};
+
+  const pct = weeksTotal > 0 ? Math.round((weeksOnTrack / weeksTotal) * 100) : 100;
+  return {totalOffice, totalRequired, weeksOnTrack, weeksTotal, pct, weekDetails};
 }
 
 // ═══════════════════════════════════════
@@ -1216,62 +1233,10 @@ async function doExport(){
 }
 
 // ═══════════════════════════════════════
-//  SESSION INACTIVITY TIMER
-//  • 15 min inactivity → show warning
-//  • 2 min warning countdown → auto logout
+//  SESSION — persistent, no auto-logout
 // ═══════════════════════════════════════
-const INACTIVE_MS  = 13 * 60 * 1000; // 13 min → show warning
-const WARNING_MS   = 2  * 60 * 1000; // 2 min warning countdown
-let inactivityTimer  = null;
-let countdownTimer   = null;
-let countdownSeconds = 120;
-
-const ACTIVITY_EVENTS = ['mousemove','mousedown','keydown','touchstart','scroll','click'];
-
-function resetInactivityTimer() {
-  if (!currentUser) return;
-  clearTimeout(inactivityTimer);
-  inactivityTimer = setTimeout(showSessionWarning, INACTIVE_MS);
-}
-
-function startActivityListeners() {
-  ACTIVITY_EVENTS.forEach(e => document.addEventListener(e, resetInactivityTimer, { passive: true }));
-}
-
-function stopActivityListeners() {
-  ACTIVITY_EVENTS.forEach(e => document.removeEventListener(e, resetInactivityTimer));
-  clearTimeout(inactivityTimer);
-  clearInterval(countdownTimer);
-}
-
-function showSessionWarning() {
-  document.getElementById('session-modal').classList.add('open');
-  countdownSeconds = 120;
-  updateCountdownDisplay();
-  countdownTimer = setInterval(() => {
-    countdownSeconds--;
-    updateCountdownDisplay();
-    if (countdownSeconds <= 0) {
-      clearInterval(countdownTimer);
-      document.getElementById('session-modal').classList.remove('open');
-      logout();
-      showToastRaw('Session expired. Please log in again.');
-    }
-  }, 1000);
-}
-
-function updateCountdownDisplay() {
-  const m = Math.floor(countdownSeconds / 60);
-  const s = countdownSeconds % 60;
-  document.getElementById('session-countdown').textContent = `${m}:${String(s).padStart(2,'0')}`;
-}
-
-function extendSession() {
-  clearInterval(countdownTimer);
-  document.getElementById('session-modal').classList.remove('open');
-  resetInactivityTimer();
-  showToast('Session extended ✓');
-}
+function startActivityListeners() { /* no-op: inactivity timeout removed */ }
+function stopActivityListeners()  { /* no-op: inactivity timeout removed */ }
 
 function showToastRaw(msg) {
   const t = document.getElementById('toast');

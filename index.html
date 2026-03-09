@@ -282,10 +282,9 @@
       <div class="filter-row">
         <select class="filter-select" id="team-year-filter" onchange="renderTeamView()"></select>
         <select class="filter-select" id="team-status-filter" onchange="renderTeamView()">
-          <option value="">All Statuses (Today)</option>
-          <option value="office">Office Today</option>
-          <option value="home">WFH Today</option>
-          <option value="leave">Leave Today</option>
+          <option value="">All</option>
+          <option value="met">Met Compliance (100%)</option>
+          <option value="unmet">Unmet Compliance (&lt;100%)</option>
         </select>
         <button class="btn-export" onclick="openExportModal()">&#11015; Export Excel</button>
       </div>
@@ -569,7 +568,48 @@ document.getElementById('delete-confirm-modal').addEventListener('click',e=>{if(
 function toggleAmManager(){const role=document.getElementById('am-role').value;document.getElementById('am-manager-group').style.display=role==='employee'?'':'none';}
 async function saveNewMember(){const name=document.getElementById('am-name').value.trim();const email=document.getElementById('am-email').value.trim().toLowerCase();const pass=document.getElementById('am-password').value;const role=document.getElementById('am-role').value;const mid=role==='employee'?(document.getElementById('am-manager').value||null):null;hideError('add-member-error');if(!name||!email||!pass)return showError('add-member-error','Please fill all fields.');if(pass.length<4)return showError('add-member-error','Password must be at least 4 characters.');const ek=emailKey(email);const btn=document.getElementById('am-save-btn');btn.disabled=true;btn.textContent='Creating…';try{const existing=await fbGet(`users/${ek}`);if(existing){btn.disabled=false;btn.textContent='Create Member';return showError('add-member-error','Email already registered.');}const colors=['#e05a2b','#2b7de0','#8b5cf6','#10b981','#f59e0b','#ec4899','#06b6d4'];const newUser={id:email,name,email,password:pass,role,managerId:mid,color:colors[Math.floor(Math.random()*colors.length)],mustChangePw:true};await fbSet(`users/${ek}`,newUser);await fbSet(`attendance/${ek}`,{});USERS[ek]=newUser;btn.disabled=false;btn.textContent='Create Member';closeAddMemberModal();showToast(`${name} added — they must change password on first login`);if(currentUser.role==='admin')renderAdminPanel();else renderTeamView();}catch(e){btn.disabled=false;btn.textContent='Create Member';showError('add-member-error','Connection error. Try again.');}}
 
-// TEAM VIEW — year filter, full-year stats per member
+// TEAM VIEW — year filter, compliance up to last Friday
+function getLastFriday(){
+  const today=new Date();today.setHours(0,0,0,0);
+  const dow=today.getDay(); // 0=Sun,1=Mon,...,6=Sat
+  // days back to reach last Friday: if today is Fri(5) use today, else go back to prev Fri
+  const daysBack = dow>=5 ? dow-5 : dow+2;
+  const fri=new Date(today);fri.setDate(today.getDate()-daysBack);
+  return fri;
+}
+function calcComplianceUpTo(att, year, lastFriday){
+  // Only count weeks whose Friday <= lastFriday and whose Monday is in this year
+  const firstOfYear=new Date(year,0,1);
+  const dow1=firstOfYear.getDay();
+  const startMonday=new Date(firstOfYear);
+  startMonday.setDate(firstOfYear.getDate()-(dow1===0?6:dow1-1));
+  let totalRequired=0,totalOffice=0,weeksOnTrack=0,weeksTotal=0;
+  const cursor=new Date(startMonday);
+  while(true){
+    const weekFri=new Date(cursor);weekFri.setDate(cursor.getDate()+4);
+    // Stop if this week's Friday is after lastFriday
+    if(weekFri>lastFriday) break;
+    // Skip weeks entirely outside the year
+    if(weekFri.getFullYear()<year&&cursor.getFullYear()<year){cursor.setDate(cursor.getDate()+7);continue;}
+    // Count Mon-Fri of this week
+    let office=0,leave=0,holiday=0,exceptional=0;
+    for(let i=0;i<5;i++){
+      const day=new Date(cursor);day.setDate(cursor.getDate()+i);
+      const s=att[ds(day)];
+      if(s==='office') office++;
+      if(s==='leave') leave++;
+      if(s==='holiday') holiday++;
+      if(s==='exceptional') exceptional++;
+    }
+    const req=Math.max(0,2-(leave+holiday+exceptional));
+    const met=office>=req;
+    totalRequired+=req;totalOffice+=office;weeksTotal++;
+    if(met)weeksOnTrack++;
+    cursor.setDate(cursor.getDate()+7);
+  }
+  const pct=weeksTotal>0?Math.round((weeksOnTrack/weeksTotal)*100):100;
+  return{totalOffice,totalRequired,weeksOnTrack,weeksTotal,pct};
+}
 async function renderTeamView(){
   if(currentUser.role!=='manager')return;
   const snap=await fbGet('users');USERS=snap||{};
@@ -577,27 +617,30 @@ async function renderTeamView(){
   const team=getTeam(currentUser.email);
   await Promise.all(team.map(async m=>{const ek=emailKey(m.email);const att=await fbGet(`attendance/${ek}`);ATT[ek]=att||{};}));
   const selYear=parseInt(document.getElementById('team-year-filter').value)||new Date().getFullYear();
-  const statusFilter=document.getElementById('team-status-filter').value;
+  const complianceFilter=document.getElementById('team-status-filter').value;
   const today=ds(new Date());
+  const lastFri=getLastFriday();
+  const lastFriLabel=lastFri.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
   let rows='';
   team.forEach(member=>{
     const att=getAtt(member.email);
-    let yOffice=0,yHome=0,yLeave=0,yHoliday=0;
-    let totalReq=0,wksOnTrack=0,wksTotal=0;
+    let yOffice=0,yHome=0,yLeave=0,yHoliday=0,yExceptional=0;
+    const dim365=new Date(selYear,11,31);
     for(let m=0;m<12;m++){
       const dim=new Date(selYear,m+1,0).getDate();
-      for(let d=1;d<=dim;d++){const date=new Date(selYear,m,d);if(date.getDay()===0||date.getDay()===6)continue;const s=att[ds(date)];if(s==='office')yOffice++;if(s==='home')yHome++;if(s==='leave')yLeave++;if(s==='holiday')yHoliday++;}
-      const c=calcCompliance(att,selYear,m);totalReq+=c.totalRequired;wksOnTrack+=c.weeksOnTrack;wksTotal+=c.weeksTotal;
+      for(let d=1;d<=dim;d++){const date=new Date(selYear,m,d);if(date.getDay()===0||date.getDay()===6)continue;const s=att[ds(date)];if(s==='office')yOffice++;if(s==='home')yHome++;if(s==='leave')yLeave++;if(s==='holiday')yHoliday++;if(s==='exceptional')yExceptional++;}
     }
-    const pct=wksTotal>0?Math.round((wksOnTrack/wksTotal)*100):100;
+    const{totalOffice,totalRequired,weeksOnTrack,weeksTotal,pct}=calcComplianceUpTo(att,selYear,lastFri);
+    // Apply compliance filter
+    if(complianceFilter==='met'&&pct<100)return;
+    if(complianceFilter==='unmet'&&pct>=100)return;
     const todayStatus=att[today]||null;
-    if(statusFilter&&todayStatus!==statusFilter)return;
     const cc=pct>=100?'bar-good':pct>=60?'bar-warn':'bar-bad';
     const firstPw=member.mustChangePw?'<span style="font-size:11px;background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:10px;margin-left:6px">⚠ Pending first login</span>':'';
-    rows+=`<tr><td><div class="member-info"><div class="avatar" style="background:${member.color};width:32px;height:32px;font-size:12px">${initials(member.name)}</div><div><div style="font-weight:500;display:flex;align-items:center">${member.name}${firstPw}</div><div style="font-size:12px;color:var(--text-muted)">${member.email}</div></div></div></td><td>${todayStatus?`<span class="status-pill pill-${todayStatus}">${statusIcon(todayStatus)} ${statusLabel(todayStatus)}</span>`:'<span class="status-pill pill-none">Not logged</span>'}</td><td style="text-align:center"><strong>${yOffice}</strong> <span style="color:var(--text-muted);font-size:12px">/ ${totalReq}</span></td><td style="text-align:center">${yHome}</td><td style="text-align:center">${yLeave}</td><td style="text-align:center">${yHoliday}</td><td><div class="compliance-bar"><div class="bar-track"><div class="bar-fill ${cc}" style="width:${Math.min(100,pct)}%"></div></div><span style="font-size:12px;font-weight:600">${pct}%</span></div></td></tr>`;
+    rows+=`<tr><td><div class="member-info"><div class="avatar" style="background:${member.color};width:32px;height:32px;font-size:12px">${initials(member.name)}</div><div><div style="font-weight:500;display:flex;align-items:center">${member.name}${firstPw}</div><div style="font-size:12px;color:var(--text-muted)">${member.email}</div></div></div></td><td style="text-align:center">${yOffice}</td><td style="text-align:center">${yHome}</td><td style="text-align:center">${yLeave}</td><td style="text-align:center">${yHoliday}</td><td style="text-align:center">${yExceptional}</td><td><div class="compliance-bar"><div class="bar-track"><div class="bar-fill ${cc}" style="width:${Math.min(100,pct)}%"></div></div><span style="font-size:12px;font-weight:600">${pct}%</span></div></td></tr>`;
   });
-  if(!rows)rows=`<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted)">No team members yet.</td></tr>`;
-  document.getElementById('team-table').innerHTML=`<table><thead><tr><th>Member</th><th>Today</th><th style="text-align:center">WFO ${selYear}</th><th style="text-align:center">WFH ${selYear}</th><th style="text-align:center">Leave ${selYear}</th><th style="text-align:center">Holiday ${selYear}</th><th>Compliance ${selYear}</th></tr></thead><tbody>${rows}</tbody></table>`;
+  if(!rows)rows=`<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted)">No members match the selected filter.</td></tr>`;
+  document.getElementById('team-table').innerHTML=`<table><thead><tr><th>Member</th><th style="text-align:center">WFO ${selYear}</th><th style="text-align:center">WFH ${selYear}</th><th style="text-align:center">Leave ${selYear}</th><th style="text-align:center">Holiday ${selYear}</th><th style="text-align:center">Exceptional ${selYear}</th><th>Compliance <span style="font-size:10px;font-weight:400;color:var(--text-muted)">(till ${lastFriLabel})</span></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 async function renderReports(){

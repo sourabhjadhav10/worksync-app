@@ -267,7 +267,6 @@
     <div class="header-logo">Work<span>Sync</span></div>
     <div class="header-right">
       <div class="sync-bar"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Connected</span></div>
-      <div style="font-size:11px;color:rgba(255,252,245,.3);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;">v37</div>
       <div class="user-chip" onclick="openProfileModal()">
         <div class="avatar" id="header-avatar" style="background:#e05a2b">JD</div>
         <span class="user-name" id="header-name">John Doe</span>
@@ -460,7 +459,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v7</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v8</div>
 
 <script>
 // ═══════════════════════════════════════
@@ -991,8 +990,9 @@ async function saveNewMember(){
 // ═══════════════════════════════════════
 async function renderTeamView(){
   if(currentUser.role!=='manager') return;
+  const snap=await fbGet('users'); USERS=snap||{};
   setupTeamListeners();
-  const team=getTeam(currentUser.id);
+  const team=getTeam(currentUser.email);
   await Promise.all(team.map(async m=>{
     const ek=emailKey(m.email);
     const att=await fbGet(`attendance/${ek}`);

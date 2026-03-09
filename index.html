@@ -352,11 +352,12 @@
       <div class="admin-stats" id="admin-stats"></div>
       <div class="section-header">
         <div class="section-title">All Users</div>
-        <div style="display:flex;gap:10px">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
           <input type="text" class="search-bar" id="admin-search" placeholder="Search name or email…" oninput="renderAdminTable()">
           <select class="filter-select" id="admin-role-filter" onchange="renderAdminTable()">
             <option value="">All Roles</option><option value="employee">Employee</option><option value="manager">Manager</option>
           </select>
+          <button class="btn-add" onclick="openAddMemberModal()">+ Add Member</button>
         </div>
       </div>
       <div class="team-table" id="admin-table"></div>
@@ -417,8 +418,11 @@
       <select id="am-manager" class="profile-select"></select>
     </div>
     <div class="profile-field">
-      <div class="profile-label">Initial Password <span style="font-size:11px;color:var(--text-muted)">(employee will change on first login)</span></div>
-      <input type="text" id="am-password" class="profile-input" placeholder="Set a temporary password">
+      <div class="profile-label" style="display:flex;align-items:center;justify-content:space-between">
+        Initial Password <span style="font-size:11px;color:var(--text-muted)">(user will change on first login)</span>
+        <button onclick="document.getElementById('am-password').value=(()=>{const c='ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';let p='';for(let i=0;i<8;i++)p+=c[Math.floor(Math.random()*c.length)];return p;})()" style="font-size:11px;padding:3px 10px;border:1px solid var(--border);border-radius:6px;background:var(--warm-mid);cursor:pointer;font-family:DM Sans,sans-serif">🔀 Generate</button>
+      </div>
+      <input type="text" id="am-password" class="profile-input" placeholder="Set a temporary password" style="margin-top:6px">
     </div>
     <div class="modal-actions" style="margin-top:4px">
       <button class="btn-save" id="am-save-btn" onclick="saveNewMember()">Create Member</button>
@@ -446,6 +450,26 @@
     <div class="modal-actions">
       <button class="btn-save" onclick="doExport()">⬇ Download Excel</button>
       <button class="btn-cancel" onclick="closeExportModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN PROFILE MODAL -->
+<div class="modal-overlay" id="admin-profile-modal">
+  <div class="modal" style="width:360px">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+      <div class="avatar" id="admin-modal-avatar" style="background:#f59e0b;width:48px;height:48px;font-size:18px;flex-shrink:0">SA</div>
+      <div>
+        <div style="font-family:Syne,sans-serif;font-size:16px;font-weight:700" id="admin-modal-name">System Admin</div>
+        <div style="font-size:13px;color:var(--text-muted)" id="admin-modal-email">admin@worksync.com</div>
+        <div style="font-size:11px;margin-top:3px;background:rgba(245,158,11,.15);color:#92400e;padding:2px 8px;border-radius:10px;display:inline-block">👑 Administrator</div>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:16px">
+      <button onclick="document.getElementById('admin-profile-modal').classList.remove('open');logout();" style="width:100%;padding:12px;background:none;border:1px solid rgba(224,90,43,.35);color:var(--office);border-radius:8px;font-family:DM Sans,sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:all .2s;" onmouseover="this.style.background='rgba(224,90,43,.08)'" onmouseout="this.style.background='none'">Sign Out</button>
+    </div>
+    <div style="margin-top:10px">
+      <button onclick="document.getElementById('admin-profile-modal').classList.remove('open');" style="width:100%;padding:10px;background:var(--warm-mid);border:none;border-radius:8px;font-family:DM Sans,sans-serif;font-size:14px;cursor:pointer;">Close</button>
     </div>
   </div>
 </div>
@@ -516,7 +540,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: 13</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v14</div>
 
 <script>
 // ═══════════════════════════════════════
@@ -928,7 +952,14 @@ document.getElementById('day-modal').addEventListener('click',e=>{if(e.target.id
 //  PROFILE MODAL
 // ═══════════════════════════════════════
 function openProfileModal(){
-  if(currentUser.role==='admin') return;
+  if(currentUser.role==='admin'){
+    document.getElementById('admin-modal-name').textContent = currentUser.name;
+    document.getElementById('admin-modal-email').textContent = currentUser.email;
+    document.getElementById('admin-modal-avatar').textContent = initials(currentUser.name);
+    document.getElementById('admin-modal-avatar').style.background = currentUser.color||'#f59e0b';
+    document.getElementById('admin-profile-modal').classList.add('open');
+    return;
+  }
   const manager=currentUser.managerId?USERS[emailKey(currentUser.managerId)]:null;
   const allMgrs=getAllManagers().filter(m=>m.email!==currentUser.email);
 
@@ -992,23 +1023,26 @@ function openAddMemberModal(){
   document.getElementById('am-email').value='';
   document.getElementById('am-password').value='';
   document.getElementById('am-role').value='employee';
+  // Update modal title based on who is adding
+  document.querySelector('#add-member-modal .modal-title').textContent = currentUser.role==='admin' ? '➕ Add New Member' : '➕ Add Team Member';
 
-  // Populate manager dropdown — all managers including current user
-  const snap=getAllManagers();
+  // Populate manager dropdown
   const sel=document.getElementById('am-manager');
   sel.innerHTML=`<option value="">— No manager —</option>`;
-  snap.forEach(m=>{
+  getAllManagers().forEach(m=>{
     const o=document.createElement('option');
     o.value=m.email; o.textContent=`${m.name} (${m.email})`;
-    if(m.email===currentUser.email) o.selected=true;
+    // Pre-select current user only if they're a manager (not admin)
+    if(currentUser.role==='manager' && m.email===currentUser.email) o.selected=true;
     sel.appendChild(o);
   });
 
-  document.getElementById('am-manager-group').style.display='';
+  toggleAmManager();
   document.getElementById('add-member-modal').classList.add('open');
 }
 function closeAddMemberModal(){document.getElementById('add-member-modal').classList.remove('open');}
 document.getElementById('add-member-modal').addEventListener('click',e=>{if(e.target.id==='add-member-modal') closeAddMemberModal();});
+document.getElementById('admin-profile-modal').addEventListener('click',e=>{if(e.target.id==='admin-profile-modal') document.getElementById('admin-profile-modal').classList.remove('open');});
 document.getElementById('edit-member-modal').addEventListener('click',e=>{if(e.target.id==='edit-member-modal') closeEditModal();});
 document.getElementById('delete-confirm-modal').addEventListener('click',e=>{if(e.target.id==='delete-confirm-modal') closeDeleteModal();});
 
@@ -1040,7 +1074,7 @@ async function saveNewMember(){
     btn.disabled=false; btn.textContent='Create Member';
     closeAddMemberModal();
     showToast(`${name} added — they must change password on first login`);
-    renderTeamView();
+    if(currentUser.role==='admin') renderAdminPanel(); else renderTeamView();
   }catch(e){
     btn.disabled=false; btn.textContent='Create Member';
     showError('add-member-error','Connection error. Try again.');

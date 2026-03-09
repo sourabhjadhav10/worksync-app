@@ -271,7 +271,7 @@
         <div class="avatar" id="header-avatar" style="background:#e05a2b">JD</div>
         <span class="user-name" id="header-name">John Doe</span>
       </div>
-      <button class="btn-logout" onclick="logout()">Sign out</button>
+
     </div>
   </header>
   <div class="nav-tabs">
@@ -387,6 +387,9 @@
       <button class="btn-save" id="profile-save-btn" onclick="saveProfile()">Save Changes</button>
       <button class="btn-cancel" onclick="closeProfileModal()">Cancel</button>
     </div>
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+      <button onclick="closeProfileModal();logout();" style="width:100%;padding:11px;background:none;border:1px solid rgba(224,90,43,.35);color:var(--office);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:all .2s;" onmouseover="this.style.background='rgba(224,90,43,.08)'" onmouseout="this.style.background='none'">Sign Out</button>
+    </div>
   </div>
 </div>
 
@@ -457,7 +460,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v40</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: 1</div>
 
 <script>
 // ═══════════════════════════════════════
@@ -520,7 +523,17 @@ function showError(elId, msg) {
 }
 function hideError(elId) { document.getElementById(elId).style.display='none'; }
 
-
+// ═══════════════════════════════════════
+//  SEED ADMIN ONLY
+// ═══════════════════════════════════════
+async function seedAdmin() {
+  const ek = emailKey('admin@worksync.com');
+  if (!USERS[ek]) {
+    const admin = { id:'admin@worksync.com', name:'System Admin', email:'admin@worksync.com', password:'admin123', role:'admin', managerId:null, color:'#f59e0b', mustChangePw:false };
+    USERS[ek] = admin;
+    await fbSet(`users/${ek}`, admin);
+  }
+}
 
 // ═══════════════════════════════════════
 //  BOOT
@@ -530,6 +543,7 @@ function hideError(elId) { document.getElementById(elId).style.display='none'; }
     document.getElementById('loading-msg').textContent = 'Connecting to Firebase…';
     const snap = await fbGet('users');
     USERS = snap || {};
+    await seedAdmin();
 
     // Restore session
     const savedEmail = sessionStorage.getItem('ws_session');
@@ -1201,7 +1215,69 @@ async function doExport(){
   showToast(`Exported ${selectedEmails.length} employee${selectedEmails.length>1?'s':''} — ${monthName} ${fy}`);
 }
 
+// ═══════════════════════════════════════
+//  SESSION INACTIVITY TIMER
+//  • 15 min inactivity → show warning
+//  • 2 min warning countdown → auto logout
+// ═══════════════════════════════════════
+const INACTIVE_MS  = 13 * 60 * 1000; // 13 min → show warning
+const WARNING_MS   = 2  * 60 * 1000; // 2 min warning countdown
+let inactivityTimer  = null;
+let countdownTimer   = null;
+let countdownSeconds = 120;
 
+const ACTIVITY_EVENTS = ['mousemove','mousedown','keydown','touchstart','scroll','click'];
+
+function resetInactivityTimer() {
+  if (!currentUser) return;
+  clearTimeout(inactivityTimer);
+  inactivityTimer = setTimeout(showSessionWarning, INACTIVE_MS);
+}
+
+function startActivityListeners() {
+  ACTIVITY_EVENTS.forEach(e => document.addEventListener(e, resetInactivityTimer, { passive: true }));
+}
+
+function stopActivityListeners() {
+  ACTIVITY_EVENTS.forEach(e => document.removeEventListener(e, resetInactivityTimer));
+  clearTimeout(inactivityTimer);
+  clearInterval(countdownTimer);
+}
+
+function showSessionWarning() {
+  document.getElementById('session-modal').classList.add('open');
+  countdownSeconds = 120;
+  updateCountdownDisplay();
+  countdownTimer = setInterval(() => {
+    countdownSeconds--;
+    updateCountdownDisplay();
+    if (countdownSeconds <= 0) {
+      clearInterval(countdownTimer);
+      document.getElementById('session-modal').classList.remove('open');
+      logout();
+      showToastRaw('Session expired. Please log in again.');
+    }
+  }, 1000);
+}
+
+function updateCountdownDisplay() {
+  const m = Math.floor(countdownSeconds / 60);
+  const s = countdownSeconds % 60;
+  document.getElementById('session-countdown').textContent = `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function extendSession() {
+  clearInterval(countdownTimer);
+  document.getElementById('session-modal').classList.remove('open');
+  resetInactivityTimer();
+  showToast('Session extended ✓');
+}
+
+function showToastRaw(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
 function populateMonthFilters(){
   const now=new Date(); let html='';
   for(let i=-3;i<=2;i++){

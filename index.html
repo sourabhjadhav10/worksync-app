@@ -460,7 +460,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v3</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v4</div>
 
 <script>
 // ═══════════════════════════════════════
@@ -729,7 +729,7 @@ function calcCompliance(att,year,month) {
 
   const weeks = {}, weekOrder = [];
   const cursor = new Date(startMonday);
-  while (cursor <= lastMonday) {
+  while (cursor.getTime() <= lastMonday.getTime()) {
     const wk = ds(new Date(cursor));
     weekOrder.push(wk);
     weeks[wk] = {office:0, leave:0, holiday:0, home:0, workdays:0};

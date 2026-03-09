@@ -75,7 +75,7 @@
   main{flex:1;padding:28px;max-width:1200px;width:100%;margin:0 auto;}
 
   /* STATS */
-  .stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:28px;}
+  .stats-row{display:grid;grid-template-columns:repeat(6,1fr);gap:16px;margin-bottom:28px;}
   .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;position:relative;overflow:hidden;}
   .stat-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;}
   .stat-card.office::before{background:var(--office);}
@@ -465,7 +465,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v11</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v12</div>
 
 <script>
 // ═══════════════════════════════════════
@@ -830,7 +830,8 @@ function renderStats(){
     <div class="stat-card office"><div class="stat-label">Office Days (WFO)</div><div class="stat-value">${totalOffice}</div><div class="stat-sub">Required: ${totalRequired} (2/week adjusted)</div></div>
     <div class="stat-card home"><div class="stat-label">Work From Home</div><div class="stat-value">${home}</div><div class="stat-sub">${unlogged} day${unlogged!==1?'s':''} unlogged</div></div>
     <div class="stat-card leave"><div class="stat-label">Leave</div><div class="stat-value">${leave}</div><div class="stat-sub">Reduces weekly requirement</div></div>
-    <div class="stat-card holiday"><div class="stat-label">Holiday / Exceptional</div><div class="stat-value">${holiday+exceptional}</div><div class="stat-sub">Holiday: ${holiday} · Remote: ${exceptional}</div></div>
+    <div class="stat-card holiday"><div class="stat-label">Public Holiday</div><div class="stat-value">${holiday}</div><div class="stat-sub">Reduces weekly requirement</div></div>
+    <div class="stat-card exceptional"><div class="stat-label">Exceptional Remote</div><div class="stat-value">${exceptional}</div><div class="stat-sub">Reduces weekly requirement</div></div>
     <div class="stat-card compliance"><div class="stat-label">Compliance</div><div class="stat-value">${pct}%</div><div class="stat-sub">${weeksOnTrack}/${weeksTotal} weeks on track ${pct>=100?'✅':pct>=60?'⚠️':'🔴'}</div></div>`;
 }
 

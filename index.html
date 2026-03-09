@@ -10,7 +10,7 @@
 <style>
   :root {
     --ink:#0f0e17;--paper:#fffcf5;--warm-mid:#f2ede4;
-    --office:#e05a2b;--home:#2b7de0;--leave:#8b5cf6;--holiday:#10b981;--admin:#f59e0b;
+    --office:#e05a2b;--home:#2b7de0;--leave:#8b5cf6;--holiday:#10b981;--admin:#f59e0b;--exceptional:#0ea5e9;--exceptional-bg:#e0f2fe;
     --office-bg:#fdf0eb;--home-bg:#ebf3fd;--leave-bg:#f3effe;--holiday-bg:#ecfdf5;
     --surface:#ffffff;--border:#e8e3d8;--text-muted:#8b8578;
     --radius:12px;--shadow-lg:0 8px 40px rgba(15,14,23,.14);
@@ -75,19 +75,21 @@
   main{flex:1;padding:28px;max-width:1200px;width:100%;margin:0 auto;}
 
   /* STATS */
-  .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;}
+  .stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:28px;}
   .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;position:relative;overflow:hidden;}
   .stat-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;}
   .stat-card.office::before{background:var(--office);}
   .stat-card.home::before{background:var(--home);}
   .stat-card.leave::before{background:var(--leave);}
   .stat-card.compliance::before{background:var(--holiday);}
+  .stat-card.exceptional::before{background:var(--exceptional);}
   .stat-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);margin-bottom:6px;}
   .stat-value{font-family:'Syne',sans-serif;font-size:28px;font-weight:700;line-height:1;}
   .stat-card.office .stat-value{color:var(--office);}
   .stat-card.home .stat-value{color:var(--home);}
   .stat-card.leave .stat-value{color:var(--leave);}
   .stat-card.compliance .stat-value{color:var(--holiday);}
+  .stat-card.exceptional .stat-value{color:var(--exceptional);}
   .stat-sub{font-size:12px;color:var(--text-muted);margin-top:4px;}
 
   /* CALENDAR */
@@ -111,6 +113,7 @@
   .cal-day.status-home{background:var(--home-bg);border-color:rgba(43,125,224,.3);}
   .cal-day.status-leave{background:var(--leave-bg);border-color:rgba(139,92,246,.3);}
   .cal-day.status-holiday{background:var(--holiday-bg);border-color:rgba(16,185,129,.3);}
+  .cal-day.status-exceptional{background:var(--exceptional-bg);border-color:rgba(14,165,233,.3);}
   .day-status-icon{font-size:12px;margin-top:2px;line-height:1;}
   .cal-day.status-office .day-num,.cal-day.status-home .day-num,.cal-day.status-leave .day-num,.cal-day.status-holiday .day-num{font-size:10px;color:var(--text-muted);}
   .legend{display:flex;gap:12px;padding:10px 16px;border-top:1px solid var(--border);flex-wrap:wrap;}
@@ -141,6 +144,7 @@
   .status-option.selected-home{background:var(--home-bg);border-color:var(--home);color:var(--home);}
   .status-option.selected-leave{background:var(--leave-bg);border-color:var(--leave);color:var(--leave);}
   .status-option.selected-holiday{background:var(--holiday-bg);border-color:var(--holiday);color:var(--holiday);}
+  .status-option.selected-exceptional{background:var(--exceptional-bg);border-color:var(--exceptional);color:var(--exceptional);}
   .modal-actions{display:flex;gap:10px;}
   .btn-save{flex:1;padding:11px;background:var(--office);color:white;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .2s;}
   .btn-save:hover{opacity:.85;}
@@ -181,6 +185,7 @@
   .pill-leave{background:var(--leave-bg);color:var(--leave);}
   .pill-holiday{background:var(--holiday-bg);color:var(--holiday);}
   .pill-none{background:var(--warm-mid);color:var(--text-muted);}
+  .pill-exceptional{background:var(--exceptional-bg);color:var(--exceptional);}
   .pill-manager{background:rgba(224,90,43,.12);color:var(--office);}
   .pill-employee{background:rgba(43,125,224,.12);color:var(--home);}
   .compliance-bar{display:flex;align-items:center;gap:8px;}
@@ -224,7 +229,7 @@
   .toast.show{transform:translateY(0);opacity:1;}
   .hidden{display:none!important;}
 
-  @media(max-width:768px){main{padding:16px;}.stats-row,.admin-stats{grid-template-columns:repeat(2,1fr);}.report-grid{grid-template-columns:1fr;}header{padding:0 16px;}.nav-tabs{padding:0 16px;overflow-x:auto;}.month-card-body{grid-template-columns:1fr!important;}.week-row{flex-direction:column;align-items:flex-start;gap:6px;}}
+  @media(max-width:768px){main{padding:16px;}.stats-row{grid-template-columns:repeat(2,1fr);}.admin-stats{grid-template-columns:repeat(2,1fr);}.report-grid{grid-template-columns:1fr;}header{padding:0 16px;}.nav-tabs{padding:0 16px;overflow-x:auto;}.month-card-body{grid-template-columns:1fr!important;}.week-row{flex-direction:column;align-items:flex-start;gap:6px;}}
 </style>
 </head>
 <body>
@@ -368,6 +373,7 @@
       <div class="status-option" data-status="home" onclick="selectStatus('home')">🏠 Work from Home (WFH)</div>
       <div class="status-option" data-status="leave" onclick="selectStatus('leave')">🌴 On Leave</div>
       <div class="status-option" data-status="holiday" onclick="selectStatus('holiday')">🎉 Public Holiday</div>
+      <div class="status-option" data-status="exceptional" onclick="selectStatus('exceptional')">🌐 Exceptional Remote Work</div>
     </div>
     <div class="modal-actions">
       <button class="btn-save" id="day-save-btn" onclick="saveStatus()">Save</button>
@@ -459,7 +465,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v10</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v11</div>
 
 <script>
 // ═══════════════════════════════════════
@@ -496,9 +502,9 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 // ═══════════════════════════════════════
 function ds(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function initials(n) { return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
-function statusLabel(s) { return {office:'WFO',home:'WFH',leave:'Leave',holiday:'Holiday'}[s]||s; }
-function statusIcon(s)  { return {office:'🏢',home:'🏠',leave:'🌴',holiday:'🎉'}[s]||''; }
-function statusCalIcon(s){ return {office:'🏢',home:'🏠',leave:'🌴',holiday:'🎉'}[s]||''; }
+function statusLabel(s) { return {office:'WFO',home:'WFH',leave:'Leave',holiday:'Holiday',exceptional:'Exceptional'}[s]||s; }
+function statusIcon(s)  { return {office:'🏢',home:'🏠',leave:'🌴',holiday:'🎉',exceptional:'🌐'}[s]||''; }
+function statusCalIcon(s){ return {office:'🏢',home:'🏠',leave:'🌴',holiday:'🎉',exceptional:'🌐'}[s]||''; }
 function getManagers()  { return Object.values(USERS).filter(u=>u.role==='manager'||u.role==='admin'); }
 function getAllManagers(){ return Object.values(USERS).filter(u=>u.role==='manager'); }
 function getTeam(mid)   { return Object.values(USERS).filter(u=>u.managerId===mid); }
@@ -743,8 +749,9 @@ function calcCompliance(att,year,month) {
         weeks[wk].workdays++;
         const s = att[ds(day)];
         if (s==='office')  weeks[wk].office++;
-        if (s==='leave')   weeks[wk].leave++;
-        if (s==='holiday') weeks[wk].holiday++;
+        if (s==='leave')      weeks[wk].leave++;
+        if (s==='holiday')    weeks[wk].holiday++;
+        if (s==='exceptional') weeks[wk].exceptional=(weeks[wk].exceptional||0)+1;
         if (s==='home')    weeks[wk].home++;
       }
     }
@@ -755,7 +762,7 @@ function calcCompliance(att,year,month) {
   const weekDetails=[];
   weekOrder.forEach(wk => {
     const w = weeks[wk];
-    const req = Math.max(0, 2 - (w.leave + w.holiday));
+    const req = Math.max(0, 2 - (w.leave + w.holiday + (w.exceptional||0)));
     const met = w.office >= req;
     w.req = req; w.met = met;
     totalRequired += req; totalOffice += w.office; weeksTotal++;
@@ -808,21 +815,22 @@ function mkDay(num,other,weekend,key,status,isToday){
 // ═══════════════════════════════════════
 function renderStats(){
   const att=getAtt(currentUser.email);
-  let home=0,leave=0,holiday=0,workdays=0;
+  let home=0,leave=0,holiday=0,exceptional=0,workdays=0;
   const dim=new Date(calYear,calMonth+1,0).getDate();
   for(let d=1;d<=dim;d++){
     const date=new Date(calYear,calMonth,d);
     if(date.getDay()===0||date.getDay()===6) continue;
     workdays++;
     const s=att[ds(date)];
-    if(s==='home') home++; if(s==='leave') leave++; if(s==='holiday') holiday++;
+    if(s==='home') home++; if(s==='leave') leave++; if(s==='holiday') holiday++; if(s==='exceptional') exceptional++;
   }
   const {totalOffice,totalRequired,weeksOnTrack,weeksTotal,pct}=calcCompliance(att,calYear,calMonth);
-  const unlogged=workdays-totalOffice-home-leave-holiday;
+  const unlogged=workdays-totalOffice-home-leave-holiday-exceptional;
   document.getElementById('stats-row').innerHTML=`
     <div class="stat-card office"><div class="stat-label">Office Days (WFO)</div><div class="stat-value">${totalOffice}</div><div class="stat-sub">Required: ${totalRequired} (2/week adjusted)</div></div>
     <div class="stat-card home"><div class="stat-label">Work From Home</div><div class="stat-value">${home}</div><div class="stat-sub">${unlogged} day${unlogged!==1?'s':''} unlogged</div></div>
-    <div class="stat-card leave"><div class="stat-label">Leave / Holiday</div><div class="stat-value">${leave+holiday}</div><div class="stat-sub">Reduces weekly requirement</div></div>
+    <div class="stat-card leave"><div class="stat-label">Leave</div><div class="stat-value">${leave}</div><div class="stat-sub">Reduces weekly requirement</div></div>
+    <div class="stat-card holiday"><div class="stat-label">Holiday / Exceptional</div><div class="stat-value">${holiday+exceptional}</div><div class="stat-sub">Holiday: ${holiday} · Remote: ${exceptional}</div></div>
     <div class="stat-card compliance"><div class="stat-label">Compliance</div><div class="stat-value">${pct}%</div><div class="stat-sub">${weeksOnTrack}/${weeksTotal} weeks on track ${pct>=100?'✅':pct>=60?'⚠️':'🔴'}</div></div>`;
 }
 
@@ -1054,24 +1062,25 @@ async function renderReports(){
   // Build one card per month
   let allMonthsHtml='';
   for(let m=0;m<12;m++){
-    let office=0,home=0,leave=0,holiday=0;
+    let office=0,home=0,leave=0,holiday=0,exceptional=0;
     const dim=new Date(fy,m+1,0).getDate();
     for(let d=1;d<=dim;d++){
       const date=new Date(fy,m,d);
       if(date.getDay()===0||date.getDay()===6) continue;
       const s=att[ds(date)];
-      if(s==='office') office++;
-      if(s==='home')   home++;
-      if(s==='leave')  leave++;
-      if(s==='holiday')holiday++;
+      if(s==='office')     office++;
+      if(s==='home')       home++;
+      if(s==='leave')      leave++;
+      if(s==='holiday')    holiday++;
+      if(s==='exceptional') exceptional++;
     }
     const {totalRequired:req,weeksOnTrack,weeksTotal,pct,weekDetails}=calcCompliance(att,fy,m);
-    const total=office+home+leave+holiday;
+    const total=office+home+leave+holiday+exceptional;
 
     // Donut chart
     const cx=52,cy=52,r=40;
     let segs='',cum=0;
-    [{val:office,color:'var(--office)'},{val:home,color:'var(--home)'},{val:leave,color:'var(--leave)'},{val:holiday,color:'var(--holiday)'}].forEach(sg=>{
+    [{val:office,color:'var(--office)'},{val:home,color:'var(--home)'},{val:leave,color:'var(--leave)'},{val:holiday,color:'var(--holiday)'},{val:exceptional,color:'var(--exceptional)'}].forEach(sg=>{
       if(!sg.val) return;
       const sa=(cum/(total||1))*2*Math.PI-Math.PI/2,ea=((cum+sg.val)/(total||1))*2*Math.PI-Math.PI/2;
       segs+=`<path d="M${cx},${cy} L${cx+r*Math.cos(sa)},${cy+r*Math.sin(sa)} A${r},${r} 0 ${sg.val/(total||1)>.5?1:0},1 ${cx+r*Math.cos(ea)},${cy+r*Math.sin(ea)} Z" fill="${sg.color}" opacity=".85"/>`;
@@ -1097,6 +1106,7 @@ async function renderReports(){
           <span class="status-pill pill-home" style="font-size:11px;padding:2px 7px">🏠 ${w.home||0}</span>
           ${w.leave?`<span class="status-pill pill-leave" style="font-size:11px;padding:2px 7px">🌴 ${w.leave}</span>`:''}
           ${w.holiday?`<span class="status-pill pill-holiday" style="font-size:11px;padding:2px 7px">🎉 ${w.holiday}</span>`:''}
+          ${w.exceptional?`<span class="status-pill pill-exceptional" style="font-size:11px;padding:2px 7px">🌐 ${w.exceptional}</span>`:''}
           <span style="font-size:11px;font-weight:600;color:${w.met?'var(--holiday)':'var(--office)'}">${w.met?'✅ Met':'🔴 Not Met'}</span>
         </div>
       </div>`).join('');
@@ -1122,6 +1132,7 @@ async function renderReports(){
               <div class="donut-item"><div class="donut-swatch" style="background:var(--home)"></div>WFH<span class="donut-count">${home}</span></div>
               <div class="donut-item"><div class="donut-swatch" style="background:var(--leave)"></div>Leave<span class="donut-count">${leave}</span></div>
               <div class="donut-item"><div class="donut-swatch" style="background:var(--holiday)"></div>Holiday<span class="donut-count">${holiday}</span></div>
+              ${exceptional?`<div class="donut-item"><div class="donut-swatch" style="background:var(--exceptional)"></div>Exceptional<span class="donut-count">${exceptional}</span></div>`:''}
             </div>
           </div>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px">Compliance: WFO ${office} / Required ${req}</div>
@@ -1223,7 +1234,7 @@ async function doExport(){
   const dim=new Date(fy,fm,0).getDate(), monthName=MONTHS[fm-1];
   const workDays=[];
   for(let d=1;d<=dim;d++){const date=new Date(fy,fm-1,d);if(date.getDay()!==0&&date.getDay()!==6) workDays.push(date);}
-  const statusColors={office:{bg:'#FDF0EB',color:'#E05A2B',label:'WFO'},home:{bg:'#EBF3FD',color:'#2B7DE0',label:'WFH'},leave:{bg:'#F3EFFE',color:'#8B5CF6',label:'Leave'},holiday:{bg:'#ECFDF5',color:'#10B981',label:'Holiday'}};
+  const statusColors={office:{bg:'#FDF0EB',color:'#E05A2B',label:'WFO'},home:{bg:'#EBF3FD',color:'#2B7DE0',label:'WFH'},leave:{bg:'#F3EFFE',color:'#8B5CF6',label:'Leave'},holiday:{bg:'#ECFDF5',color:'#10B981',label:'Holiday'},exceptional:{bg:'#E0F2FE',color:'#0EA5E9',label:'Exceptional'}};
   let html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>';
   selectedEmails.forEach((email)=>{const m=USERS[emailKey(email)];if(!m) return;html+=`<x:ExcelWorksheet><x:Name>${m.name.slice(0,28).replace(/[&<>]/g,'')}</x:Name><x:WorksheetOptions><x:Selected/></x:WorksheetOptions></x:ExcelWorksheet>`;});
   html+='</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>';

@@ -320,9 +320,9 @@
         <button class="btn-add" onclick="openAddMemberModal()">+ Add Team Member</button>
       </div>
       <div class="filter-row">
-        <select class="filter-select" id="team-month-filter" onchange="renderTeamView()"></select>
+        <select class="filter-select" id="team-year-filter" onchange="renderTeamView()"></select>
         <select class="filter-select" id="team-status-filter" onchange="renderTeamView()">
-          <option value="">All Statuses</option><option value="office">Office</option>
+          <option value="">All Statuses (Today)</option><option value="office">Office</option>
           <option value="home">Work From Home</option><option value="leave">Leave</option>
         </select>
         <button class="btn-export" onclick="openExportModal()">⬇ Export Excel</button>
@@ -436,8 +436,8 @@
   <div class="modal" style="width:460px">
     <div class="modal-title">⬇ Export to Excel</div>
     <div style="margin-bottom:14px">
-      <div class="profile-label" style="margin-bottom:8px">Select Month</div>
-      <select id="export-month" class="profile-select"></select>
+      <div class="profile-label" style="margin-bottom:8px">Select Year</div>
+      <select id="export-year" class="profile-select"></select>
     </div>
     <div style="margin-bottom:18px">
       <div class="profile-label" style="margin-bottom:8px">Select Employees</div>
@@ -448,7 +448,7 @@
       <div id="export-member-list" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px"></div>
     </div>
     <div class="modal-actions">
-      <button class="btn-save" onclick="doExport()">⬇ Download Excel</button>
+      <button class="btn-save" id="export-btn" onclick="doExport()">⬇ Download Excel</button>
       <button class="btn-cancel" onclick="closeExportModal()">Cancel</button>
     </div>
   </div>
@@ -461,7 +461,7 @@
       <div class="avatar" id="admin-modal-avatar" style="background:#f59e0b;width:48px;height:48px;font-size:18px;flex-shrink:0">SA</div>
       <div>
         <div style="font-family:Syne,sans-serif;font-size:16px;font-weight:700" id="admin-modal-name">System Admin</div>
-        <div style="font-size:13px;color:var(--text-muted)" id="admin-modal-email">admin@worksync.com</div>
+        <div style="font-size:13px;color:var(--text-muted)" id="admin-modal-email"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="cbaaafa6a2a58bbca4b9a0b8b2a5a8e5a8a4a6">[email&#160;protected]</a></div>
         <div style="font-size:11px;margin-top:3px;background:rgba(245,158,11,.15);color:#92400e;padding:2px 8px;border-radius:10px;display:inline-block">👑 Administrator</div>
       </div>
     </div>
@@ -540,9 +540,9 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v14</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v15</div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 // ═══════════════════════════════════════
 //  FIREBASE
 // ═══════════════════════════════════════
@@ -1094,22 +1094,25 @@ async function renderTeamView(){
     const att=await fbGet(`attendance/${ek}`);
     ATT[ek]=att||{};
   }));
-  const selMonth=document.getElementById('team-month-filter').value;
-  const [fy,fm]=selMonth.split('-').map(Number);
+  const fy=parseInt(document.getElementById('team-year-filter').value||new Date().getFullYear());
   const statusFilter=document.getElementById('team-status-filter').value;
   const today=ds(new Date());
   let rows='';
   team.forEach(member=>{
     const att=getAtt(member.email);
-    let home=0,leave=0,workdays=0;
-    for(let d=1;d<=new Date(fy,fm,0).getDate();d++){
-      const date=new Date(fy,fm-1,d);
-      if(date.getDay()===0||date.getDay()===6) continue;
-      workdays++;
-      const s=att[ds(date)];
-      if(s==='home') home++; if(s==='leave') leave++;
+    // Full year stats
+    let wfo=0,home=0,leave=0,holiday=0,exceptional=0,totalReq=0,weeksOn=0,weeksAll=0;
+    for(let m=0;m<12;m++){
+      const {totalOffice,totalRequired,weeksOnTrack,weeksTotal}=calcCompliance(att,fy,m);
+      wfo+=totalOffice; totalReq+=totalRequired; weeksOn+=weeksOnTrack; weeksAll+=weeksTotal;
+      for(let d=1;d<=new Date(fy,m+1,0).getDate();d++){
+        const date=new Date(fy,m,d);
+        if(date.getDay()===0||date.getDay()===6) continue;
+        const s=att[ds(date)];
+        if(s==='home') home++; if(s==='leave') leave++; if(s==='holiday') holiday++; if(s==='exceptional') exceptional++;
+      }
     }
-    const {totalOffice,totalRequired,pct}=calcCompliance(att,fy,fm-1);
+    const pct=weeksAll>0?Math.round((weeksOn/weeksAll)*100):100;
     const todayStatus=att[today]||null;
     if(statusFilter&&todayStatus!==statusFilter) return;
     const cc=pct>=100?'bar-good':pct>=60?'bar-warn':'bar-bad';
@@ -1118,13 +1121,15 @@ async function renderTeamView(){
       <td><div class="member-info"><div class="avatar" style="background:${member.color};width:32px;height:32px;font-size:12px">${initials(member.name)}</div>
       <div><div style="font-weight:500;display:flex;align-items:center">${member.name}${firstPw}</div><div style="font-size:12px;color:var(--text-muted)">${member.email}</div></div></div></td>
       <td>${todayStatus?`<span class="status-pill pill-${todayStatus}">${statusIcon(todayStatus)} ${statusLabel(todayStatus)}</span>`:'<span class="status-pill pill-none">Not logged</span>'}</td>
-      <td style="text-align:center"><strong>${totalOffice}</strong> <span style="color:var(--text-muted);font-size:12px">/ ${totalRequired}</span></td>
-      <td style="text-align:center">${home}</td><td style="text-align:center">${leave}</td>
+      <td style="text-align:center"><strong>${wfo}</strong><span style="color:var(--text-muted);font-size:12px"> / ${totalReq}</span></td>
+      <td style="text-align:center">${home}</td>
+      <td style="text-align:center">${leave}</td>
+      <td style="text-align:center">${holiday+exceptional}</td>
       <td><div class="compliance-bar"><div class="bar-track"><div class="bar-fill ${cc}" style="width:${Math.min(100,pct)}%"></div></div><span style="font-size:12px;font-weight:600">${pct}%</span></div></td>
     </tr>`;
   });
-  if(!rows) rows=`<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">No team members yet. Click "+ Add Team Member" to get started.</td></tr>`;
-  document.getElementById('team-table').innerHTML=`<table><thead><tr><th>Member</th><th>Today</th><th style="text-align:center">WFO</th><th style="text-align:center">WFH</th><th style="text-align:center">Leave</th><th>Compliance</th></tr></thead><tbody>${rows}</tbody></table>`;
+  if(!rows) rows=`<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted)">No team members yet. Click "+ Add Team Member" to get started.</td></tr>`;
+  document.getElementById('team-table').innerHTML=`<table><thead><tr><th>Member</th><th>Today</th><th style="text-align:center">WFO</th><th style="text-align:center">WFH</th><th style="text-align:center">Leave</th><th style="text-align:center">Holiday/Ex</th><th>Compliance ${fy}</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 // ═══════════════════════════════════════
@@ -1519,21 +1524,14 @@ function showToastRaw(msg) {
 }
 function populateMonthFilters(){
   const now=new Date();
-  // Team filter: months
-  let mHtml='';
-  for(let i=-3;i<=2;i++){
-    const d=new Date(now.getFullYear(),now.getMonth()+i,1);
-    mHtml+=`<option value="${d.getFullYear()}-${d.getMonth()+1}" ${i===0?'selected':''}>${MONTHS[d.getMonth()]} ${d.getFullYear()}</option>`;
+  const curYear=now.getFullYear();
+  // Team filter: years
+  let tyHtml='';
+  for(let y=curYear+1;y>=curYear-2;y--){
+    tyHtml+=`<option value="${y}" ${y===curYear?'selected':''}>${y}</option>`;
   }
-  const tmf=document.getElementById('team-month-filter'); if(tmf) tmf.innerHTML=mHtml;
+  const tmf=document.getElementById('team-year-filter'); if(tmf) tmf.innerHTML=tyHtml;
   // Report filter: years
   let yHtml='';
   const curYear=now.getFullYear();
-  for(let y=curYear+1;y>=curYear-2;y--){
-    yHtml+=`<option value="${y}" ${y===curYear?'selected':''}>${y}</option>`;
-  }
-  const ryf=document.getElementById('report-year-filter'); if(ryf) ryf.innerHTML=yHtml;
-}
-</script>
-</body>
-</html>
+  for(let

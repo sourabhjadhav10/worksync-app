@@ -329,13 +329,13 @@
     <div id="tab-content-reports" class="hidden">
       <div class="section-header">
         <div class="section-title">Reports & Analytics</div>
-        <select class="filter-select" id="report-month-filter" onchange="renderReports()"></select>
+        <select class="filter-select" id="report-year-filter" onchange="renderReports()"></select>
       </div>
       <div id="report-user-label" style="font-size:13px;color:var(--text-muted);margin-bottom:16px"></div>
       <div id="report-manager-picker" class="hidden" style="margin-bottom:16px">
         <select class="filter-select" id="report-member-filter" onchange="renderReports()"><option value="__me__">My Stats</option></select>
       </div>
-      <div class="report-grid" id="report-grid"></div>
+      <div id="report-grid"></div>
     </div>
 
     <!-- ADMIN -->
@@ -459,7 +459,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v8</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v9</div>
 
 <script>
 // ═══════════════════════════════════════
@@ -1035,79 +1035,110 @@ async function renderTeamView(){
 //  REPORTS
 // ═══════════════════════════════════════
 async function renderReports(){
-  const selMonth=document.getElementById('report-month-filter').value;
-  if(!selMonth) return;
-  const [fy,fm]=selMonth.split('-').map(Number);
-  let userEmail=currentUser.email,reportName='My';
+  const selYear=document.getElementById('report-year-filter').value;
+  if(!selYear) return;
+  const fy=parseInt(selYear);
+  let userEmail=currentUser.email, reportName='My';
   if(currentUser.role==='manager'){
     const picker=document.getElementById('report-member-filter').value;
     if(picker&&picker!=='__me__'){userEmail=picker;reportName=(USERS[emailKey(picker)]?.name||'Member')+"'s";}
     document.getElementById('report-manager-picker').classList.remove('hidden');
     const pick=document.getElementById('report-member-filter');
-    if(pick.options.length<=1){getTeam(currentUser.id).forEach(m=>{const o=document.createElement('option');o.value=m.email;o.textContent=m.name;pick.appendChild(o);});}
+    if(pick.options.length<=1){getTeam(currentUser.email).forEach(m=>{const o=document.createElement('option');o.value=m.email;o.textContent=m.name;pick.appendChild(o);});}
     const ek=emailKey(userEmail);
     const att=await fbGet(`attendance/${ek}`); ATT[ek]=att||{};
   }
-  document.getElementById('report-user-label').textContent=`${reportName} attendance for ${MONTHS[fm-1]} ${fy}`;
+  document.getElementById('report-user-label').textContent=`${reportName} attendance report for ${fy}`;
   const att=getAtt(userEmail);
-  let home=0,leave=0,holiday=0;
-  const dim=new Date(fy,fm,0).getDate();
-  for(let d=1;d<=dim;d++){
-    const date=new Date(fy,fm-1,d);
-    if(date.getDay()===0||date.getDay()===6) continue;
-    const s=att[ds(date)];
-    if(s==='home') home++; if(s==='leave') leave++; if(s==='holiday') holiday++;
-  }
-  const {totalOffice:office,totalRequired:req,weeksOnTrack,weeksTotal,pct,weekDetails}=calcCompliance(att,fy,fm-1);
-  const total=office+home+leave+holiday;
-  const cx=60,cy=60,r=46;
-  let segs='',cum=0;
-  [{val:office,color:'var(--office)'},{val:home,color:'var(--home)'},{val:leave,color:'var(--leave)'},{val:holiday,color:'var(--holiday)'}].forEach(s=>{
-    if(!s.val) return;
-    const sa=(cum/(total||1))*2*Math.PI-Math.PI/2,ea=((cum+s.val)/(total||1))*2*Math.PI-Math.PI/2;
-    segs+=`<path d="M${cx},${cy} L${cx+r*Math.cos(sa)},${cy+r*Math.sin(sa)} A${r},${r} 0 ${s.val/(total||1)>.5?1:0},1 ${cx+r*Math.cos(ea)},${cy+r*Math.sin(ea)} Z" fill="${s.color}" opacity=".85"/>`;
-    cum+=s.val;
-  });
-  const weekRows=weekDetails.map(w=>`
-    <div class="week-row" style="background:${w.met?'rgba(16,185,129,0.12)':'rgba(224,90,43,0.12)'};border:1px solid ${w.met?'rgba(16,185,129,0.3)':'rgba(224,90,43,0.3)'}">
-      <span style="font-weight:500">w/c ${w.wk}</span>
-      <div class="week-badges">
-        <span class="status-pill pill-office" style="font-size:11px;padding:2px 7px">🏢 ${w.office}/${w.req}</span>
-        <span class="status-pill pill-home" style="font-size:11px;padding:2px 7px">🏠 ${w.home||0}</span>
-        ${w.leave?`<span class="status-pill pill-leave" style="font-size:11px;padding:2px 7px">🌴 ${w.leave}</span>`:''}
-        ${w.holiday?`<span class="status-pill pill-holiday" style="font-size:11px;padding:2px 7px">🎉 ${w.holiday}</span>`:''}
-        <span style="font-size:11px;font-weight:600;color:${w.met?'var(--holiday)':'var(--office)'}">${w.met?'✅ Met':'🔴 Not Met'}</span>
-      </div>
-    </div>`).join('');
-  document.getElementById('report-grid').innerHTML=`
-    <div class="report-card">
-      <div class="report-card-title">Attendance Breakdown</div>
-      <div class="donut-wrap">
-        <svg width="120" height="120" viewBox="0 0 120 120">
-          <circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--warm-mid)"/>${segs}
-          <circle cx="${cx}" cy="${cy}" r="28" fill="white"/>
-          <text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="16" font-weight="700" font-family="Syne,sans-serif" fill="var(--ink)">${total}</text>
-          <text x="${cx}" y="${cy+12}" text-anchor="middle" font-size="9" fill="var(--text-muted)">days logged</text>
-        </svg>
-        <div class="donut-legend">
-          <div class="donut-item"><div class="donut-swatch" style="background:var(--office)"></div>WFO<span class="donut-count">${office}</span></div>
-          <div class="donut-item"><div class="donut-swatch" style="background:var(--home)"></div>WFH<span class="donut-count">${home}</span></div>
-          <div class="donut-item"><div class="donut-swatch" style="background:var(--leave)"></div>Leave<span class="donut-count">${leave}</span></div>
-          <div class="donut-item"><div class="donut-swatch" style="background:var(--holiday)"></div>Holiday<span class="donut-count">${holiday}</span></div>
+
+  // Build one card per month
+  let allMonthsHtml='';
+  for(let m=0;m<12;m++){
+    let office=0,home=0,leave=0,holiday=0;
+    const dim=new Date(fy,m+1,0).getDate();
+    for(let d=1;d<=dim;d++){
+      const date=new Date(fy,m,d);
+      if(date.getDay()===0||date.getDay()===6) continue;
+      const s=att[ds(date)];
+      if(s==='office') office++;
+      if(s==='home')   home++;
+      if(s==='leave')  leave++;
+      if(s==='holiday')holiday++;
+    }
+    const {totalRequired:req,weeksOnTrack,weeksTotal,pct,weekDetails}=calcCompliance(att,fy,m);
+    const total=office+home+leave+holiday;
+
+    // Donut chart
+    const cx=52,cy=52,r=40;
+    let segs='',cum=0;
+    [{val:office,color:'var(--office)'},{val:home,color:'var(--home)'},{val:leave,color:'var(--leave)'},{val:holiday,color:'var(--holiday)'}].forEach(sg=>{
+      if(!sg.val) return;
+      const sa=(cum/(total||1))*2*Math.PI-Math.PI/2,ea=((cum+sg.val)/(total||1))*2*Math.PI-Math.PI/2;
+      segs+=`<path d="M${cx},${cy} L${cx+r*Math.cos(sa)},${cy+r*Math.sin(sa)} A${r},${r} 0 ${sg.val/(total||1)>.5?1:0},1 ${cx+r*Math.cos(ea)},${cy+r*Math.sin(ea)} Z" fill="${sg.color}" opacity=".85"/>`;
+      cum+=sg.val;
+    });
+    const donut=`<svg width="104" height="104" viewBox="0 0 104 104">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--warm-mid)"/>${segs||`<circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--warm-mid)"/>`}
+      <circle cx="${cx}" cy="${cy}" r="24" fill="white"/>
+      <text x="${cx}" y="${cy-3}" text-anchor="middle" font-size="14" font-weight="700" font-family="Syne,sans-serif" fill="var(--ink)">${total||0}</text>
+      <text x="${cx}" y="${cy+11}" text-anchor="middle" font-size="8" fill="var(--text-muted)">days</text>
+    </svg>`;
+
+    // Compliance bar color
+    const barColor=pct>=100?'var(--holiday)':pct>=60?'#f59e0b':'var(--office)';
+    const complianceIcon=pct>=100?'✅':pct>=60?'⚠️':'🔴';
+
+    // Week rows — label as Week 1, Week 2 etc within this month
+    const weekRows=weekDetails.map((w,i)=>`
+      <div class="week-row" style="background:${w.met?'rgba(16,185,129,0.1)':'rgba(224,90,43,0.1)'};border:1px solid ${w.met?'rgba(16,185,129,0.25)':'rgba(224,90,43,0.25)'}">
+        <span style="font-weight:600;font-size:12px">Week ${i+1}</span>
+        <div class="week-badges">
+          <span class="status-pill pill-office" style="font-size:11px;padding:2px 7px">🏢 ${w.office}/${w.req}</span>
+          <span class="status-pill pill-home" style="font-size:11px;padding:2px 7px">🏠 ${w.home||0}</span>
+          ${w.leave?`<span class="status-pill pill-leave" style="font-size:11px;padding:2px 7px">🌴 ${w.leave}</span>`:''}
+          ${w.holiday?`<span class="status-pill pill-holiday" style="font-size:11px;padding:2px 7px">🎉 ${w.holiday}</span>`:''}
+          <span style="font-size:11px;font-weight:600;color:${w.met?'var(--holiday)':'var(--office)'}">${w.met?'✅ Met':'🔴 Not Met'}</span>
+        </div>
+      </div>`).join('');
+
+    allMonthsHtml+=`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px">
+      <!-- Month Header -->
+      <div style="background:var(--ink);padding:12px 20px;display:flex;align-items:center;justify-content:space-between">
+        <div style="font-family:Syne,sans-serif;font-size:16px;font-weight:700;color:var(--paper)">${MONTHS[m]} ${fy}</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:12px;color:rgba(255,252,245,.5)">${weeksOnTrack}/${weeksTotal} weeks</span>
+          <span style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:${barColor}">${pct}% ${complianceIcon}</span>
         </div>
       </div>
-    </div>
-    <div class="report-card">
-      <div class="report-card-title">Office Compliance</div>
-      <div style="margin-bottom:12px;display:flex;justify-content:space-between;font-size:13px"><span>WFO: <strong>${office}</strong></span><span>Required: <strong>${req}</strong></span></div>
-      <div style="height:12px;background:var(--warm-mid);border-radius:99px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${Math.min(100,pct)}%;background:${pct>=100?'var(--holiday)':pct>=60?'#f59e0b':'var(--office)'};border-radius:99px"></div></div>
-      <div style="font-size:28px;font-family:Syne,sans-serif;font-weight:700;color:${pct>=100?'var(--holiday)':pct>=60?'#f59e0b':'var(--office)'}">${pct}% ${pct>=100?'✅':pct>=60?'⚠️':'🔴'}</div>
-      <div style="font-size:12px;color:var(--text-muted);margin-top:6px;background:var(--warm-mid);padding:10px;border-radius:8px">📋 Min 2 WFO days/week. Leave & holidays reduce requirement.</div>
-    </div>
-    <div class="report-card" style="grid-column:1/-1">
-      <div class="report-card-title">Week-by-Week Breakdown</div>
-      <div class="week-list">${weekRows||'<p style="color:var(--text-muted);font-size:13px">No data logged yet.</p>'}</div>
+      <!-- Content -->
+      <div style="padding:16px 20px;display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start">
+        <!-- Left: donut + legend + compliance bar -->
+        <div>
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+            ${donut}
+            <div style="display:flex;flex-direction:column;gap:5px">
+              <div class="donut-item"><div class="donut-swatch" style="background:var(--office)"></div>WFO<span class="donut-count">${office}</span></div>
+              <div class="donut-item"><div class="donut-swatch" style="background:var(--home)"></div>WFH<span class="donut-count">${home}</span></div>
+              <div class="donut-item"><div class="donut-swatch" style="background:var(--leave)"></div>Leave<span class="donut-count">${leave}</span></div>
+              <div class="donut-item"><div class="donut-swatch" style="background:var(--holiday)"></div>Holiday<span class="donut-count">${holiday}</span></div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px">Compliance: WFO ${office} / Required ${req}</div>
+          <div style="height:8px;background:var(--warm-mid);border-radius:99px;overflow:hidden;width:200px">
+            <div style="height:100%;width:${Math.min(100,pct)}%;background:${barColor};border-radius:99px"></div>
+          </div>
+        </div>
+        <!-- Right: week breakdown -->
+        <div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">Week-by-Week</div>
+          <div class="week-list">${weekRows||'<p style="color:var(--text-muted);font-size:12px">No data logged.</p>'}</div>
+        </div>
+      </div>
     </div>`;
+  }
+
+  document.getElementById('report-grid').innerHTML=allMonthsHtml;
 }
 
 // ═══════════════════════════════════════
@@ -1251,12 +1282,21 @@ function showToastRaw(msg) {
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 function populateMonthFilters(){
-  const now=new Date(); let html='';
+  const now=new Date();
+  // Team filter: months
+  let mHtml='';
   for(let i=-3;i<=2;i++){
     const d=new Date(now.getFullYear(),now.getMonth()+i,1);
-    html+=`<option value="${d.getFullYear()}-${d.getMonth()+1}" ${i===0?'selected':''}>${MONTHS[d.getMonth()]} ${d.getFullYear()}</option>`;
+    mHtml+=`<option value="${d.getFullYear()}-${d.getMonth()+1}" ${i===0?'selected':''}>${MONTHS[d.getMonth()]} ${d.getFullYear()}</option>`;
   }
-  ['team-month-filter','report-month-filter'].forEach(id=>{const el=document.getElementById(id);if(el) el.innerHTML=html;});
+  const tmf=document.getElementById('team-month-filter'); if(tmf) tmf.innerHTML=mHtml;
+  // Report filter: years
+  let yHtml='';
+  const curYear=now.getFullYear();
+  for(let y=curYear+1;y>=curYear-2;y--){
+    yHtml+=`<option value="${y}" ${y===curYear?'selected':''}>${y}</option>`;
+  }
+  const ryf=document.getElementById('report-year-filter'); if(ryf) ryf.innerHTML=yHtml;
 }
 </script>
 </body>

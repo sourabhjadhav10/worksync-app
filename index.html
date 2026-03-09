@@ -460,7 +460,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v4</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v5</div>
 
 <script>
 // ═══════════════════════════════════════
@@ -666,7 +666,6 @@ async function initApp() {
 
   populateMonthFilters();
   startActivityListeners();
-  resetInactivityTimer();
 
   if (isAdmin) {
     const snap=await fbGet('users'); USERS=snap||{};

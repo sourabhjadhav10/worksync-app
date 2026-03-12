@@ -507,7 +507,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v21</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;letter-spacing:0.5px;z-index:999;pointer-events:none;">version: v22</div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 const firebaseConfig={apiKey:"AIzaSyBW8X7liM4v_dahtn-fF91sdMo-iFhnBxo",authDomain:"worksync-app-37c01.firebaseapp.com",databaseURL:"https://worksync-app-37c01-default-rtdb.firebaseio.com",projectId:"worksync-app-37c01",storageBucket:"worksync-app-37c01.firebasestorage.app",messagingSenderId:"714304215633",appId:"1:714304215633:web:058512f74d7f223e16b670"};
@@ -552,10 +552,53 @@ function goToday(){const n=new Date();calYear=n.getFullYear();calMonth=n.getMont
 function renderCalendar(){document.getElementById('cal-month-title').textContent=`${MONTHS[calMonth]} ${calYear}`;const container=document.getElementById('cal-days');container.innerHTML='';const att=getAtt(currentUser.email),today=ds(new Date());const firstDay=new Date(calYear,calMonth,1).getDay();const dim=new Date(calYear,calMonth+1,0).getDate();const prevDays=new Date(calYear,calMonth,0).getDate();for(let i=firstDay-1;i>=0;i--)container.appendChild(mkDay(prevDays-i,true,false,null,null));for(let d=1;d<=dim;d++){const date=new Date(calYear,calMonth,d),key=ds(date);const isWE=date.getDay()===0||date.getDay()===6;container.appendChild(mkDay(d,false,isWE,key,att[key]||null,key===today));}const total=firstDay+dim,rem=total%7===0?0:7-(total%7);for(let i=1;i<=rem;i++)container.appendChild(mkDay(i,true,false,null,null));}
 function mkDay(num,other,weekend,key,status,isToday){const el=document.createElement('div');el.className='cal-day';if(other)el.classList.add('other-month');if(weekend)el.classList.add('weekend');if(isToday)el.classList.add('today');if(status)el.classList.add(`status-${status}`);const joinDate=currentUser.joinDate||null;const beforeJoin=!other&&!weekend&&key&&joinDate&&key<joinDate;if(beforeJoin)el.classList.add('before-joining');el.innerHTML=`<span class="day-num">${num}</span>${status?`<div class="day-status-icon">${statusCalIcon(status)}</div>`:''}`;if(!other&&!weekend&&key&&!beforeJoin)el.addEventListener('click',()=>openModal(key));return el;}
 function renderStats(){const att=getAtt(currentUser.email);let home=0,leave=0,holiday=0,exceptional=0,workdays=0;const dim=new Date(calYear,calMonth+1,0).getDate();for(let d=1;d<=dim;d++){const date=new Date(calYear,calMonth,d);if(date.getDay()===0||date.getDay()===6)continue;workdays++;const s=att[ds(date)];if(s==='home')home++;if(s==='leave')leave++;if(s==='holiday')holiday++;if(s==='exceptional')exceptional++;}const{totalOffice,totalRequired,weeksOnTrack,weeksTotal,pct}=calcCompliance(att,calYear,calMonth);const unlogged=workdays-totalOffice-home-leave-holiday-exceptional;document.getElementById('stats-row').innerHTML=`<div class="stat-card office"><div class="stat-label">Office Days (WFO)</div><div class="stat-value">${totalOffice}</div><div class="stat-sub">Required: ${totalRequired} (2/week adjusted)</div></div><div class="stat-card home"><div class="stat-label">Work From Home</div><div class="stat-value">${home}</div><div class="stat-sub">${unlogged} day${unlogged!==1?'s':''} unlogged</div></div><div class="stat-card leave"><div class="stat-label">Leave</div><div class="stat-value">${leave}</div><div class="stat-sub">Reduces weekly requirement</div></div><div class="stat-card holiday"><div class="stat-label">Public Holiday</div><div class="stat-value">${holiday}</div><div class="stat-sub">Reduces weekly requirement</div></div><div class="stat-card exceptional"><div class="stat-label">Exceptional Remote</div><div class="stat-value">${exceptional}</div><div class="stat-sub">Reduces weekly requirement</div></div><div class="stat-card compliance"><div class="stat-label">Compliance</div><div class="stat-value">${pct}%</div><div class="stat-sub">${weeksOnTrack}/${weeksTotal} weeks on track ${pct>=100?'✅':pct>=60?'⚠️':'🔴'}</div></div>`;}
-function openModal(key){const joinDate=currentUser.joinDate||null;if(joinDate&&key<joinDate){showToast('Cannot log status before your joining date');return;}const att=getAtt(currentUser.email);modalDate=key;selectedStatus=att[key]||null;const[y,m,d]=key.split('-');document.getElementById('modal-date-label').textContent=new Date(y,m-1,d).toLocaleDateString('en-US',{weekday:'long',day:'numeric',month:'long'});document.querySelectorAll('.status-option').forEach(o=>{o.className=`status-option${selectedStatus===o.dataset.status?` selected-${selectedStatus}`:''}`;});document.getElementById('day-modal').classList.add('open');}
+function getWeekMonday(date){const d=new Date(date);d.setHours(0,0,0,0);const dow=d.getDay();d.setDate(d.getDate()-(dow===0?6:dow-1));return d;}
+function openModal(key){
+  const joinDate=currentUser.joinDate||null;
+  if(joinDate&&key<joinDate){showToast('Cannot log status before your joining date');return;}
+  const att=getAtt(currentUser.email);
+  modalDate=key;selectedStatus=att[key]||null;
+  const[y,m,d]=key.split('-');
+  const clickedDate=new Date(y,m-1,d);
+  document.getElementById('modal-date-label').textContent=clickedDate.toLocaleDateString('en-US',{weekday:'long',day:'numeric',month:'long'});
+
+  // Determine if this date is beyond current week (next week or later)
+  const todayMonday=getWeekMonday(new Date());
+  const clickedMonday=getWeekMonday(clickedDate);
+  const isFutureWeek=clickedMonday>todayMonday;
+
+  // office and home are restricted for future weeks
+  const restrictedStatuses=['office','home'];
+  document.querySelectorAll('.status-option').forEach(o=>{
+    const s=o.dataset.status;
+    const isRestricted=isFutureWeek&&restrictedStatuses.includes(s);
+    o.style.opacity=isRestricted?'0.35':'1';
+    o.style.pointerEvents=isRestricted?'none':'';
+    o.style.cursor=isRestricted?'not-allowed':'pointer';
+    o.className=`status-option${selectedStatus===s&&!isRestricted?` selected-${selectedStatus}`:''}`;
+    // If previously selected status is now restricted, deselect it
+    if(isRestricted&&selectedStatus===s)selectedStatus=null;
+  });
+
+  // Show/hide a hint message
+  let hint=document.getElementById('future-week-hint');
+  if(!hint){hint=document.createElement('div');hint.id='future-week-hint';hint.style.cssText='font-size:12px;color:var(--text-muted);background:var(--warm-mid);padding:8px 12px;border-radius:8px;margin-bottom:12px';document.querySelector('#day-modal .status-options').before(hint);}
+  hint.textContent=isFutureWeek?'⚠ Future week: only Leave, Holiday & Exceptional can be logged in advance.':'';
+  hint.style.display=isFutureWeek?'block':'none';
+
+  document.getElementById('day-modal').classList.add('open');
+}
 function closeModal(){document.getElementById('day-modal').classList.remove('open');modalDate=null;selectedStatus=null;}
-function selectStatus(s){selectedStatus=s;document.querySelectorAll('.status-option').forEach(o=>{o.className=`status-option${s===o.dataset.status?` selected-${s}`:''}`;});}
-async function saveStatus(){if(!modalDate||!selectedStatus)return;const btn=document.getElementById('day-save-btn');btn.disabled=true;btn.textContent='Saving…';setSyncing(true);try{const ek=emailKey(currentUser.email);if(!ATT[ek])ATT[ek]={};ATT[ek][modalDate]=selectedStatus;await fbSet(`attendance/${ek}/${modalDate}`,selectedStatus);setSyncing(false);showToast(`Status: ${statusLabel(selectedStatus)}`);}catch(e){setSyncing(false,true);showToast('Save failed');}btn.disabled=false;btn.textContent='Save';closeModal();}
+function selectStatus(s){const opt=document.querySelector(`.status-option[data-status='${s}']`);if(opt&&opt.style.pointerEvents==='none')return;selectedStatus=s;document.querySelectorAll('.status-option').forEach(o=>{if(o.style.pointerEvents==='none')return;o.className=`status-option${s===o.dataset.status?` selected-${s}`:''}`;});}
+async function saveStatus(){
+  if(!modalDate||!selectedStatus)return;
+  // Server-side guard: block office/home for future weeks
+  const[y,m,d]=modalDate.split('-');
+  const clickedMonday=getWeekMonday(new Date(y,m-1,d));
+  const todayMonday=getWeekMonday(new Date());
+  if(clickedMonday>todayMonday&&(selectedStatus==='office'||selectedStatus==='home')){
+    showToast('WFO/WFH cannot be logged for future weeks');return;
+  }const btn=document.getElementById('day-save-btn');btn.disabled=true;btn.textContent='Saving…';setSyncing(true);try{const ek=emailKey(currentUser.email);if(!ATT[ek])ATT[ek]={};ATT[ek][modalDate]=selectedStatus;await fbSet(`attendance/${ek}/${modalDate}`,selectedStatus);setSyncing(false);showToast(`Status: ${statusLabel(selectedStatus)}`);}catch(e){setSyncing(false,true);showToast('Save failed');}btn.disabled=false;btn.textContent='Save';closeModal();}
 async function clearStatus(){if(!modalDate)return;setSyncing(true);try{const ek=emailKey(currentUser.email);if(ATT[ek])delete ATT[ek][modalDate];await fbRemove(`attendance/${ek}/${modalDate}`);setSyncing(false);showToast('Status cleared');}catch(e){setSyncing(false,true);}closeModal();}
 document.getElementById('day-modal').addEventListener('click',e=>{if(e.target.id==='day-modal')closeModal();});
 function openProfileModal(){if(currentUser.role==='admin'){document.getElementById('admin-modal-name').textContent=currentUser.name;document.getElementById('admin-modal-email').textContent=currentUser.email;document.getElementById('admin-modal-avatar').textContent=initials(currentUser.name);document.getElementById('admin-modal-avatar').style.background=currentUser.color||'#f59e0b';document.getElementById('admin-profile-modal').classList.add('open');return;}const manager=currentUser.managerId?USERS[emailKey(currentUser.managerId)]:null;const allMgrs=getAllManagers().filter(m=>m.email!==currentUser.email);const opts=allMgrs.map(m=>`<option value="${m.email}" ${currentUser.managerId===m.email?'selected':''}>${m.name} (${m.email})</option>`).join('');const mgrSection=`<div class="profile-section-title">${currentUser.role==='manager'?'Reports To':'Manager Assignment'}</div>${manager?`<div class="current-manager-badge">👔 Current: ${manager.name}</div>`:'<div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">No manager assigned yet</div>'}<div class="profile-field"><div class="profile-label">Select / Change Manager</div><select id="profile-manager" class="profile-select"><option value="">— No manager —</option>${opts}</select></div>`;const pwSection=`<div class="profile-section-title">Change Password</div><div class="profile-field"><div class="profile-label">New Password</div><input type="password" id="profile-pw" class="profile-input" placeholder="Leave blank to keep current"></div><div class="profile-field"><div class="profile-label">Confirm Password</div><input type="password" id="profile-pw2" class="profile-input" placeholder="Confirm new password"></div>`;document.getElementById('profile-modal-body').innerHTML=`<div class="profile-section-title">Personal Info</div><div class="profile-field"><div class="profile-label">Full Name</div><input id="profile-name" class="profile-input" value="${currentUser.name}"></div><div class="profile-field"><div class="profile-label">Email</div><input class="profile-input" value="${currentUser.email}" readonly></div><div class="profile-field"><div class="profile-label">Role</div><input class="profile-input" value="${currentUser.role.charAt(0).toUpperCase()+currentUser.role.slice(1)}" readonly></div>${mgrSection}${pwSection}`;document.getElementById('profile-modal').classList.add('open');}
